@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
 
 class DBHelper {
@@ -35,37 +36,171 @@ class DBHelper {
         if (count($array_going_to_modify) == 0) {
             return false;
         }
+
+        foreach ($array_going_to_modify as $modify_key => $modify_value) {
+            $this->setRuntimeEnv($modify_key, $modify_value);
+        }
+
         $env_file = App::environmentFilePath();
-        $env_content = $_ENV;
-        $update_array = ["APP_ENV" => App::environment()];
-        foreach ($env_content as $key => $value) {
-            foreach ($array_going_to_modify as $modify_key => $modify_value) {
-                if(!array_key_exists($modify_key,$env_content) && !array_key_exists($modify_key,$update_array)) {
-                    $update_array[$modify_key] = $this->setEnvValue($modify_key,$modify_value);
-                    break;
-                }
-                if ($key == $modify_key) {
-                    $update_array[$key] = $this->setEnvValue($key,$modify_value);
-                    break;
-                } else {
-                    $update_array[$key] = $this->setEnvValue($key,$value);
-                }
+        [$envValues, $orderedKeys] = $this->parseEnvFile($env_file);
+
+        if (empty($envValues)) {
+            foreach ($_ENV as $key => $value) {
+                $envValues[$key] = $value;
+                $orderedKeys[] = $key;
             }
         }
-        $string_content = "";
-        foreach ($update_array as $key => $item) {
-            $line = $key . "=" . $item;
-            $string_content .= $line . "\n\r";
+
+        foreach ($array_going_to_modify as $modify_key => $modify_value) {
+            if (!array_key_exists($modify_key, $envValues)) {
+                $orderedKeys[] = $modify_key;
+            }
+
+            $envValues[$modify_key] = $modify_value;
         }
+
+        $orderedKeys = array_values(array_unique($orderedKeys));
+
+        $lines = [];
+        foreach ($orderedKeys as $key) {
+            if (!array_key_exists($key, $envValues)) {
+                continue;
+            }
+
+            $lines[] = $key . "=" . $this->setEnvValue($key, $envValues[$key]);
+        }
+
         sleep(2);
-        file_put_contents($env_file, $string_content);
+        File::put($env_file, implode(PHP_EOL, $lines) . PHP_EOL);
     }
 
     public function setEnvValue($key,$value) {
         if($key == "APP_KEY") {
             return $value;
         }
-        return '"' .$value . '"';
+
+        $normalized = $this->normalizeEnvValue($value);
+        $escaped = str_replace(['\\', '"'], ['\\\\', '\"'], $normalized);
+
+        return '"' .$escaped . '"';
+    }
+
+    protected function normalizeEnvValue($value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if ($value === null) {
+            return '';
+        }
+
+        if (!is_string($value)) {
+            return (string) $value;
+        }
+
+        return $value;
+    }
+
+    protected function setRuntimeEnv(string $key, $value): void
+    {
+        $normalized = $this->normalizeEnvValue($value);
+
+        putenv($key . '=' . $normalized);
+        $_ENV[$key] = $normalized;
+        $_SERVER[$key] = $normalized;
+
+        if (function_exists('config')) {
+            if ($key === 'APP_ENV') {
+                config(['app.env' => $normalized]);
+            }
+
+            if ($key === 'APP_DEBUG') {
+                $debug = in_array(strtolower($normalized), ['1', 'true', 'on', 'yes'], true);
+                config(['app.debug' => $debug]);
+            }
+
+            if ($key === 'DB_CONNECTION') {
+                config(['database.default' => $normalized ?: config('database.default')]);
+            }
+
+            $databaseKeyMap = [
+                'DB_HOST'     => 'host',
+                'DB_PORT'     => 'port',
+                'DB_DATABASE' => 'database',
+                'DB_USERNAME' => 'username',
+                'DB_PASSWORD' => 'password',
+            ];
+
+            if (array_key_exists($key, $databaseKeyMap)) {
+                $path = 'database.connections.' . (config('database.default') ?: 'mysql') . '.' . $databaseKeyMap[$key];
+                config([$path => $normalized]);
+            }
+        }
+    }
+
+    protected function parseEnvFile(string $path): array
+    {
+        $values = [];
+        $orderedKeys = [];
+
+        if (!File::exists($path)) {
+            return [$values, $orderedKeys];
+        }
+
+        $contents = File::get($path);
+        $lines = preg_split("/\\r\\n|\\n|\\r/", $contents);
+
+        foreach ($lines as $line) {
+            if ($line === null) {
+                continue;
+            }
+
+            $trimmed = trim($line);
+
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            if (!str_contains($line, '=')) {
+                continue;
+            }
+
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+
+            if ($key === '') {
+                continue;
+            }
+
+            if (!array_key_exists($key, $values)) {
+                $orderedKeys[] = $key;
+            }
+
+            $values[$key] = $this->normalizeStoredEnvValue($value);
+        }
+
+        return [$values, $orderedKeys];
+    }
+
+    protected function normalizeStoredEnvValue(string $value)
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $startsWithQuote = $value[0] === '"' || $value[0] === "'";
+        $endsWithQuote = substr($value, -1) === '"' || substr($value, -1) === "'";
+
+        if ($startsWithQuote && $endsWithQuote && strlen($value) >= 2) {
+            $value = substr($value, 1, -1);
+        }
+
+        $value = str_replace(['\"', '\\\\'], ['"', '\\'], $value);
+
+        return $value;
     }
 
     public function saveDataInSession($data) {
@@ -188,7 +323,16 @@ class DBHelper {
 
     public static function execute($cmd): string
     {
-        $process = Process::fromShellCommandline($cmd);
+        $resolvedCommand = $cmd;
+
+        if (stripos($cmd, 'php ') === 0) {
+            $phpBinary = (new PhpExecutableFinder())->find(false);
+            if ($phpBinary) {
+                $resolvedCommand = '"' . $phpBinary . '"' . substr($cmd, 3);
+            }
+        }
+
+        $process = Process::fromShellCommandline($resolvedCommand, base_path());
 
         $processOutput = '';
 

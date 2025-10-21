@@ -24,16 +24,22 @@ class StartingPoint
             Config::set('starting-point.status',false);
         }
 
-        $client_host = request()->getHttpHost();
+        $client_host = $request->getHost();
         $filter_host = preg_replace('/^www\./', '', $client_host);
 
         try{
             if(Schema::hasTable("script") && DB::table('script')->exists()) {
                 $script = DB::table('script')->first();
 
-                if($script && $filter_host != $script->client) {
-                    Config::set('starting-point.status',true);
-                    Config::set('starting-point.point','/project/install/welcome');
+                if($script) {
+                    $registeredHost = preg_replace('/^www\./', '', $script->client);
+
+                    if($filter_host !== $registeredHost) {
+                        Config::set('starting-point.status',true);
+                        Config::set('starting-point.point','/project/install/welcome');
+                    } else {
+                        Config::set('starting-point.status',false);
+                    }
                 }
             }
         }catch(Exception $e) {

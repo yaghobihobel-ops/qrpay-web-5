@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\URL;
 
 ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
@@ -33,8 +34,8 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
         Schema::defaultStringLength(191);
-        if($this->app->environment('production')) {
-            \URL::forceScheme('https');
+        if(config('app.force_https') && $this->app->environment('production') && !app()->runningInConsole()) {
+            URL::forceScheme('https');
         }
 
         //laravel extend validation rules

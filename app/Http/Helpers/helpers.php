@@ -38,6 +38,7 @@ use App\Models\Merchants\MerchantNotification;
 use App\Models\Merchants\MerchantWallet;
 use App\Models\StripeVirtualCard;
 use App\Models\StrowalletVirtualCard;
+use Project\Installer\Helpers\DBHelper as InstallerDBHelper;
 use App\Models\SudoVirtualCard;
 use App\Models\TransactionCharge;
 use App\Models\UserAuthorization;
@@ -2557,53 +2558,18 @@ function files_asset_path_basename($slug) {
 }
 
 function modifyEnv(array $replace_array) {
-    $array_going_to_modify  = $replace_array;
-
-    if (count($array_going_to_modify) == 0) {
+    if (count($replace_array) === 0) {
         return false;
     }
 
-    $env_file = App::environmentFilePath();
-    $env_content = $_ENV;
+    $helper = new InstallerDBHelper();
+    $helper->updateEnv($replace_array);
 
-    $update_array = ["APP_ENV" => App::environment()];
-
-    foreach ($env_content as $key => $value) {
-
-        foreach ($array_going_to_modify as $modify_key => $modify_value) {
-
-            if(!array_key_exists($modify_key,$env_content) && !array_key_exists($modify_key,$update_array)) {
-                // $update_array[$modify_key] = '"'.$modify_value.'"';
-                $update_array[$modify_key] = setEnvValue($modify_key,$modify_value);
-                break;
-            }
-
-            if ($key == $modify_key) {
-                // $update_array[$key] = '"'.$modify_value.'"';
-                $update_array[$key] = setEnvValue($key,$modify_value);
-                break;
-            } else {
-                // $update_array[$key] = '"'.$value.'"';
-                $update_array[$key] = setEnvValue($key,$value);
-            }
-        }
-    }
-
-    $string_content = "";
-    foreach ($update_array as $key => $item) {
-        $line = $key . "=" . $item;
-        $string_content .= $line . "\n\r";
-    }
-
-    sleep(2);
-
-    file_put_contents($env_file, $string_content);
+    return true;
 }
 function setEnvValue($key,$value) {
-    if($key == "APP_KEY") {
-        return $value;
-    }
-    return '"'.$value.'"';
+    $helper = new InstallerDBHelper();
+    return $helper->setEnvValue($key, $value);
 }
 function checkSeederValue($value){
     $input_value = explode('/',$value);
