@@ -22,7 +22,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton(\App\Services\FeatureToggle::class, function ($app) {
+            return new \App\Services\FeatureToggle();
+        });
     }
 
     /**
