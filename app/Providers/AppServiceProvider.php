@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Deployment\CanaryReleaseManager;
+use App\Services\Deployment\FeatureToggle;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
@@ -22,7 +24,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton(FeatureToggle::class, function ($app) {
+            return new FeatureToggle();
+        });
+
+        $this->app->singleton(CanaryReleaseManager::class, function ($app) {
+            return new CanaryReleaseManager($app->make(FeatureToggle::class));
+        });
     }
 
     /**

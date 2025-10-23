@@ -72,7 +72,10 @@
         ],
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi"
-        ]
+        ],
+        "test": "vendor/bin/phpunit",
+        "test:contracts": "vendor/bin/phpunit --testsuite=Contract",
+        "test:e2e": "vendor/bin/phpunit --testsuite=EndToEnd"
     },
     "extra": {
         "laravel": {
