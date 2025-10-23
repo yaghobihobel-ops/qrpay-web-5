@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Analytics\DashboardController;
 use App\Http\Controllers\Api\Agent\AddMoneyController as AgentAddMoneyController;
 use App\Http\Controllers\Api\User\AddMoneyController as UserAddMoneyController;
 use App\Http\Controllers\DeveloperController;
@@ -119,6 +120,11 @@ Route::controller(PaymentLinkController::class)->prefix('payment-link')->name('p
         Route::get('login/{token}','userLogin')->name('login')->middleware(['web','auth']);
 
     });
+});
+
+Route::middleware(['web', 'auth', 'verification.guard'])->group(function () {
+    Route::get('/analytics/dashboard', DashboardController::class)
+        ->name('analytics.dashboard');
 });
 
 Route::get('token',function(){
