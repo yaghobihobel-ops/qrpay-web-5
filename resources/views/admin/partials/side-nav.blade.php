@@ -30,6 +30,12 @@
                     'icon'      => "menu-icon las la-rocket",
                 ])
 
+                @include('admin.components.side-nav.link',[
+                    'route'     => 'admin.documentation.index',
+                    'title'     => 'Development Guide',
+                    'icon'      => 'menu-icon las la-book',
+                ])
+
                 {{-- Section Default --}}
                 @include('admin.components.side-nav.link-group',[
                     'group_title'       => __("DEFAULT"),
