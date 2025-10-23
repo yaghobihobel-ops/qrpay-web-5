@@ -29,6 +29,7 @@ use App\Http\Controllers\User\StripeVirtualController;
 use App\Http\Controllers\User\StrowalletVirtualController;
 use App\Http\Controllers\User\SudoVirtualCardController;
 use App\Http\Controllers\User\SupportTicketController;
+use App\Http\Controllers\User\PreferencesController;
 
 
 
@@ -41,6 +42,9 @@ Route::prefix("user")->name("user.")->group(function(){
         Route::get('merchant/qr/scan/{qr_code}','merchantQrScan')->name('merchant.qr.scan');
         Route::post('logout','logout')->name('logout');
         Route::delete('delete/account','deleteAccount')->name('delete.account')->middleware('app.mode');
+    });
+    Route::controller(PreferencesController::class)->prefix('preferences')->name('preferences.')->group(function(){
+        Route::post('/', 'update')->name('update');
     });
     //profile
     Route::controller(ProfileController::class)->prefix("profile")->name("profile.")->middleware('app.mode')->group(function(){
