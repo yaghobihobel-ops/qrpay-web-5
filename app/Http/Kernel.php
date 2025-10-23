@@ -90,6 +90,7 @@ class Kernel extends HttpKernel
         'merchant.google.two.factor.api'    => \App\Http\Middleware\Merchant\GoogleTwoFactorApi::class,
         'agent.google.two.factor'    => \App\Http\Middleware\Agent\GoogleTwoFactor::class,
         'agent.google.two.factor.api'    => \App\Http\Middleware\Agent\GoogleTwoFactorApi::class,
+        'api.version' => \App\Http\Middleware\ApiVersionResolver::class,
         'auth.api' => \App\Http\Middleware\ApiAuthenticator::class,
         'merchant.api' => \App\Http\Middleware\Merchant\ApiAuthenticator::class,
         'agent.api' => \App\Http\Middleware\Agent\ApiAuthenticator::class,

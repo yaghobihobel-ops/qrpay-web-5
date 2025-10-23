@@ -41,6 +41,10 @@ use Illuminate\Support\Facades\Artisan;
 |
 */
 
+Route::get('version-info', function () {
+    return response()->json(['version' => 'v1']);
+});
+
 Route::get('/clear-cache', function() {
     Artisan::call('cache:clear');
     Artisan::call('config:clear');
