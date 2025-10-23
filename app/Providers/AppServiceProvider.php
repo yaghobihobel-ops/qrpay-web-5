@@ -22,7 +22,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        foreach (config('payments.providers', []) as $provider) {
+            $class = $provider['class'] ?? null;
+            if (!$class) {
+                continue;
+            }
+
+            $config = $provider['config'] ?? [];
+
+            $this->app->bind($class, function ($app) use ($class, $config) {
+                return new $class($config);
+            });
+        }
     }
 
     /**
