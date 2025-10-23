@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Support\HelpContentController;
 use App\Http\Controllers\User\RequestMoneyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,10 @@ use App\Http\Controllers\User\SudoVirtualCardController;
 use App\Http\Controllers\User\SupportTicketController;
 
 
+
+Route::get('/help/{section}', [HelpContentController::class, 'show'])
+    ->where('section', '[A-Za-z0-9\-]+')
+    ->name('help.show');
 
 Route::prefix("user")->name("user.")->group(function(){
     Route::post("info",[GlobalController::class,'userInfo'])->name('info');
