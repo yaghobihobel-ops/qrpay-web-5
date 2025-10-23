@@ -2139,36 +2139,14 @@ function filterBanks($banks)
     return $filtered_banks;
 }
 function checkBankAccount($account_number,$bank_code){
+    $gateway = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
 
-    $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
-    $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
-    $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
-    $ch = curl_init();
-    $url =   $base_url.'/accounts/resolve';
-    $data = [
-        "account_number" => $account_number,
-        "account_bank" => $bank_code
-    ];
+    /** @var \App\Services\Payout\PayoutProviderInterface $service */
+    $service = app(\App\Services\Payout\PayoutProviderInterface::class);
 
-    $headers = [
-        "Authorization: Bearer ". $secretKey,
-        'Content-Type: application/json'
-    ];
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        return curl_errno($ch);
-    } else {
-        $data = json_decode($response,true);
-        return $data;
-    }
-
-    curl_close($ch);
+    return $service->verifyBankAccount($account_number, $bank_code, [
+        'gateway' => $gateway,
+    ]);
 }
 function getPaymentCredentials($credentials,$label){
     $data = null;

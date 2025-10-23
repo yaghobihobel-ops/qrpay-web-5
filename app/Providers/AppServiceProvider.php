@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Payout\FlutterwavePayoutService;
+use App\Services\Payout\PayoutProviderInterface;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ServiceProvider;
 
 ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
@@ -22,7 +24,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->bind(PayoutProviderInterface::class, FlutterwavePayoutService::class);
     }
 
     /**
