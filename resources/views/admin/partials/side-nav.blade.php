@@ -64,6 +64,11 @@
                             'route'     => "admin.gift.card.index",
                             'icon'      => "menu-icon las la-gift",
                         ],
+                        [
+                            'title'     => __("Help Center Analytics"),
+                            'route'     => "admin.help-center.analytics",
+                            'icon'      => "menu-icon las la-chalkboard-teacher",
+                        ],
                     ]
                 ])
                 {{-- manage Bill Pay & Mobile top Up Methods  --}}

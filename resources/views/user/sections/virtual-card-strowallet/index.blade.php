@@ -16,8 +16,11 @@
 @section('content')
 <div class="body-wrapper">
     <div class="dashboard-area mt-10">
-        <div class="dashboard-header-wrapper">
-            <h3 class="title">{{__(@$page_title)}}</h3>
+        <div class="dashboard-header-wrapper d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <h3 class="title mb-0">{{__(@$page_title)}}</h3>
+                <x-help.launcher section="cards" :label="__('Card help')" />
+            </div>
             @if ($customer_card  < $card_limit )
                 <a href="{{ setRoute('user.strowallet.virtual.card.create') }}" class="btn--base small" >{{ __("create Card") }} <i class="las la-plus ms-1"></i></a>
             @endif

@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\CountryRestrictionController;
 use App\Http\Controllers\Admin\CryptoAssetController;
 use App\Http\Controllers\Admin\ExtensionsController;
 use App\Http\Controllers\Admin\FrontendHeaderSectionController;
+use App\Http\Controllers\Admin\HelpContentAnalyticsController;
 use App\Http\Controllers\Admin\GatewayApiController;
 use App\Http\Controllers\Admin\LanguageController;
 use App\Http\Controllers\Admin\LiveExchangeRateApiController;
@@ -77,6 +78,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         //google 2fa
         Route::get('google/2fa','google2FaView')->name('google.2fa.view');
         Route::post('google/2fa','google2FAStatusUpdate')->name('google.2fa.status.update');
+    });
+
+    Route::controller(HelpContentAnalyticsController::class)->prefix('help-center')->name('help-center.')->group(function () {
+        Route::get('analytics', 'index')->name('analytics');
     });
     // Setup Currency Section
     Route::controller(CurrencyController::class)->prefix('currency')->name('currency.')->group(function () {
