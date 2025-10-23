@@ -16,10 +16,10 @@ use Illuminate\Support\Facades\Auth;
 use App\Traits\User\LoggedInUsers;
 use Exception;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rules\Password;
 use App\Traits\User\RegisteredUsers;
 use App\Traits\AdminNotifications\AuthNotifications;
 use App\Traits\ControlDynamicInputFields;
+use App\Services\Security\DeviceFingerprintService;
 
 class LoginController extends Controller
 {
@@ -54,7 +54,8 @@ class LoginController extends Controller
             $user->two_factor_verified = false;
             $user->save();
             $this->refreshUserWallets($user);
-            $this->createLoginLog($user);
+            $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+            $this->createLoginLog($user, $fingerprint);
             $this->createQr($user);
             $token = $user->createToken('user_token')->accessToken;
 
@@ -71,10 +72,7 @@ class LoginController extends Controller
 
     public function register(Request $request){
         $basic_settings = $this->basic_settings;
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->secure_password) {
-            $passowrd_rule = ["required","confirmed",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised()];
-        }
+        $passowrd_rule = security_password_rules();
         if( $basic_settings->agree_policy){
             $agree ='required';
         }else{

@@ -9,6 +9,8 @@ use App\Http\Helpers\PushNotificationHelper;
 use App\Models\Admin\AdminLoginLogs;
 use App\Models\Admin\AdminNotification;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Security\DeviceFingerprintService;
+use App\Models\DeviceFingerprint;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -73,16 +75,17 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user)
     {
+        $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
         $user->update([
             'two_factor_verified'   => false,
         ]);
-        $this->createLoginLog($user);
+        $this->createLoginLog($user, $fingerprint);
         $this->updateInfo($user);
         return redirect()->intended(route('admin.dashboard'));
     }
 
 
-    protected function createLoginLog($admin) {
+    protected function createLoginLog($admin, ?DeviceFingerprint $fingerprint = null) {
 
         $client_ip = request()->ip() ?? false;
         $location = geoip()->getLocation($client_ip);
@@ -105,6 +108,7 @@ class LoginController extends Controller
             'timezone'      => $location['timezone'] ?? "",
             'browser'       => $agent->browser() ?? "",
             'os'            => $agent->platform() ?? "",
+            'device_fingerprint_id' => $fingerprint?->id,
         ];
 
         try{

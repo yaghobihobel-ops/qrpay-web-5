@@ -16,11 +16,11 @@ use Illuminate\Support\Facades\Auth;
 use App\Traits\Merchant\LoggedInUsers;
 use Exception;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rules\Password;
 use App\Traits\Merchant\RegisteredUsers;
 use App\Traits\ControlDynamicInputFields;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use App\Traits\AdminNotifications\AuthNotifications;
+use App\Services\Security\DeviceFingerprintService;
 
 class LoginController extends Controller
 {
@@ -57,7 +57,8 @@ class LoginController extends Controller
             $this->createDeveloperApi($user);
             $this->refreshSandboxWallets($user);
             $this->createGatewaySetting($user);
-            $this->createLoginLog($user);
+            $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+            $this->createLoginLog($user, $fingerprint);
             $this->createQr($user);
             $token = $user->createToken('Merchant Token')->accessToken;
             $data = ['token' => $token, 'merchant' => $user, ];
@@ -73,10 +74,7 @@ class LoginController extends Controller
 
     public function register(Request $request){
         $basic_settings = $this->basic_settings;
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->merchant_secure_password) {
-            $passowrd_rule = ["required","confirmed",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised()];
-        }
+        $passowrd_rule = security_password_rules();
         if( $basic_settings->merchant_agree_policy){
             $agree ='required';
         }else{
