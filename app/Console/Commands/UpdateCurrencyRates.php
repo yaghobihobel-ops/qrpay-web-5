@@ -8,6 +8,7 @@ use App\Models\Admin\Currency;
 use App\Models\Admin\ExchangeRate;
 use App\Models\Admin\PaymentGatewayCurrency;
 use App\Models\LiveExchangeRateApiSetting;
+use App\Services\Cache\GlobalCacheService;
 use Illuminate\Console\Command;
 use Exception;
 
@@ -24,7 +25,7 @@ class UpdateCurrencyRates extends Command
     public function handle()
     {
         try {
-            $api_rates = (new CurrencyLayer())->getLiveExchangeRates();
+            $api_rates = (new CurrencyLayer())->getLiveExchangeRates(true);
 
             if (isset($api_rates) && $api_rates['status'] == false) {
                 info($api_rates['message'] ?? "Something went wrong! Please try again.");
@@ -32,7 +33,9 @@ class UpdateCurrencyRates extends Command
             }
 
             $api_rates = $api_rates['data'];
-            $provider = LiveExchangeRateApiSetting::where('slug', GlobalConst::CURRENCY_LAYER)->first();
+            $provider = GlobalCacheService::rememberProvider(GlobalConst::CURRENCY_LAYER, function () {
+                return LiveExchangeRateApiSetting::where('slug', GlobalConst::CURRENCY_LAYER)->first();
+            });
 
             // For Setup Currency Rate Update
             if ($provider->currency_module == 1) {

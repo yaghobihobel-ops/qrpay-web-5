@@ -70,6 +70,18 @@ return [
             'days' => 14,
         ],
 
+        'slow-query' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/slow-query.log'),
+            'level' => 'info',
+        ],
+
+        'queue-metrics' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/queue-metrics.log'),
+            'level' => 'info',
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

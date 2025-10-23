@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\Admin\SetupKyc;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Cache\GlobalCacheService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -70,6 +71,7 @@ class ProfileController extends Controller
 
         try{
             auth()->user()->update($validated);
+            GlobalCacheService::forgetUserAccount(auth()->id());
         }catch(Exception $e) {
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
@@ -100,6 +102,7 @@ class ProfileController extends Controller
             auth()->user()->update([
                 'password'  => Hash::make($request->password),
             ]);
+            GlobalCacheService::forgetUserAccount(auth()->id());
         }catch(Exception $e) {
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }

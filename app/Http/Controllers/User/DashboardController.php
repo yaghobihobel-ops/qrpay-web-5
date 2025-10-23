@@ -12,6 +12,7 @@ use App\Models\Merchants\Merchant;
 use App\Models\Merchants\MerchantQrCode;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Cache\GlobalCacheService;
 use Exception;
 use App\Models\UserQrCode;
 use Illuminate\Http\Request;
@@ -26,15 +27,30 @@ class DashboardController extends Controller
     {
         $page_title =__( "Dashboard");
         $baseCurrency = Currency::default();
-        $transactions = Transaction::auth()->latest()->take(5)->get();
-        $data['totalReceiveRemittance'] =Transaction::auth()->remitance()->where('attribute',"RECEIVED")->where('status',1)->sum('request_amount');
-        $data['totalSendRemittance'] =Transaction::auth()->remitance()->where('attribute',"SEND")->where('status',1)->sum('request_amount');
+        $reportingConnection = config('performance.database.reporting_connection', config('database.default'));
+        $transactionQuery = function () use ($reportingConnection) {
+            return Transaction::on($reportingConnection)->auth();
+        };
+        $transactions = $transactionQuery()->latest()->take(5)->get();
+        $data['totalReceiveRemittance'] = $transactionQuery()->remitance()->where('attribute',"RECEIVED")->where('status',1)->sum('request_amount');
+        $data['totalSendRemittance'] = $transactionQuery()->remitance()->where('attribute',"SEND")->where('status',1)->sum('request_amount');
         $data['cardAmount'] = userActiveCardData()['total_balance'];
-        $data['billPay'] = amountOnBaseCurrency(Transaction::auth()->billPay()->where('status',1)->get());
-        $data['topUps'] = amountOnBaseCurrency(Transaction::auth()->mobileTopup()->where('status',1)->get());
-        $data['withdraw'] = Transaction::auth()->moneyOut()->where('status',1)->sum('request_amount');
-        $data['total_transaction'] = Transaction::auth()->where('status', 1)->count();
+        $data['billPay'] = amountOnBaseCurrency($transactionQuery()->billPay()->where('status',1)->get());
+        $data['topUps'] = amountOnBaseCurrency($transactionQuery()->mobileTopup()->where('status',1)->get());
+        $data['withdraw'] = $transactionQuery()->moneyOut()->where('status',1)->sum('request_amount');
+        $data['total_transaction'] = $transactionQuery()->where('status', 1)->count();
         $data['total_gift_cards'] = GiftCard::auth()->count();
+        $accountSummary = null;
+        $userId = Auth::id();
+        if ($userId) {
+            $accountSummary = GlobalCacheService::rememberUserAccount($userId, function () use ($userId) {
+                return User::with(['wallets.currency'])->find($userId);
+            });
+        }
+        $data['cached_wallet_balance'] = 0;
+        if ($accountSummary instanceof User) {
+            $data['cached_wallet_balance'] = $accountSummary->wallets->sum('balance');
+        }
 
         $start = strtotime(date('Y-m-01'));
         $end = strtotime(date('Y-m-31'));
@@ -124,7 +140,7 @@ class DashboardController extends Controller
         ];
 
          //
-        return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData'));
+        return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData','accountSummary'));
     }
 
     public function logout(Request $request) {

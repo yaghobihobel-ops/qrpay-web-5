@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
@@ -40,6 +42,20 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        $slowQueryThreshold = (int) config('performance.database.slow_query_threshold_ms', 0);
+        if ($slowQueryThreshold > 0) {
+            DB::listen(function ($query) use ($slowQueryThreshold) {
+                if ($query->time >= $slowQueryThreshold) {
+                    Log::channel('slow-query')->info('Slow query detected', [
+                        'sql' => $query->sql,
+                        'bindings' => $query->bindings,
+                        'time_ms' => $query->time,
+                        'connection' => $query->connectionName,
+                    ]);
+                }
+            });
+        }
     }
 
     /**

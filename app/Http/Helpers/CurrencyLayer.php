@@ -2,11 +2,10 @@
 
 namespace App\Http\Helpers;
 
+use App\Constants\GlobalConst;
 use App\Models\LiveExchangeRateApiSetting;
+use App\Services\Cache\GlobalCacheService;
 use Exception;
-use Illuminate\Http\Client\RequestException;
-use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 
 class CurrencyLayer{
 
@@ -28,7 +27,9 @@ class CurrencyLayer{
 
     public function __construct()
     {
-        $this->api = LiveExchangeRateApiSetting::active()->first();
+        $this->api = GlobalCacheService::rememberProvider(GlobalConst::CURRENCY_LAYER, function () {
+            return LiveExchangeRateApiSetting::where('slug', GlobalConst::CURRENCY_LAYER)->active()->first();
+        });
         $this->setConfig();
     }
     /**
@@ -51,7 +52,7 @@ class CurrencyLayer{
     /**
      * Authenticate API access token retrieve
      */
-    public function getLiveExchangeRates()
+    public function getLiveExchangeRates(bool $forceRefresh = false)
     {
 
         if(!$this->config) $this->setConfig();
@@ -63,41 +64,41 @@ class CurrencyLayer{
         $source = get_default_currency_code();
         $url =  $this->config['request_url']."/live?access_key=$access_key&currencies=$currencies&format=1&source=$source";
 
-        //start curl request.
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        return GlobalCacheService::rememberExchangeRates(function () use ($url, $admin_addition_rate) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-        $response = curl_exec($ch);
-        $results = json_decode($response,true);
-        //handle data
-        if(isset($results) && isset($results['success']) && $results['success'] == true){
+            $response = curl_exec($ch);
+            $results = json_decode($response,true);
 
-            $quotes = $results['quotes'];
-            $formattedQuotes = [];
-            foreach ($quotes as $currency => $value) {
-                $formattedValue = get_amount(($value * $admin_addition_rate),null,12);
-                if (strpos($currency, $results['source']) === 0) {
-                    $currency = substr($currency, 3);
+            curl_close($ch);
+
+            if(isset($results) && isset($results['success']) && $results['success'] == true){
+
+                $quotes = $results['quotes'];
+                $formattedQuotes = [];
+                foreach ($quotes as $currency => $value) {
+                    $formattedValue = get_amount(($value * $admin_addition_rate),null,12);
+                    if (strpos($currency, $results['source']) === 0) {
+                        $currency = substr($currency, 3);
+                    }
+                    $formattedQuotes[$currency] = $formattedValue;
                 }
-                $formattedQuotes[$currency] = $formattedValue;
-            }
-            $data = [
-                'status'    => true,
-                'message'   => "Successfully Get Exchange Rate",
-                'data'   => $formattedQuotes,
-            ];
+                return [
+                    'status'    => true,
+                    'message'   => "Successfully Get Exchange Rate",
+                    'data'   => $formattedQuotes,
+                ];
 
-        }else{
-            $data = [
+            }
+
+            return [
                 'status'    => false,
                 'message'   => $results['error']['info']??'something went wrong in currency layer api',
                 'data'   => [],
             ];
-        }
-        
-        return $data??[];
-        curl_close($ch);
+        }, $forceRefresh);
     }
     public function apiCurrencyList()
     {
