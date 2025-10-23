@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\CookieController;
 use App\Http\Controllers\Admin\CountryRestrictionController;
 use App\Http\Controllers\Admin\CryptoAssetController;
 use App\Http\Controllers\Admin\ExtensionsController;
+use App\Http\Controllers\Admin\HealthMonitoringController;
 use App\Http\Controllers\Admin\FrontendHeaderSectionController;
 use App\Http\Controllers\Admin\GatewayApiController;
 use App\Http\Controllers\Admin\LanguageController;
@@ -67,6 +68,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('dashboard', 'index')->name('dashboard');
         Route::post('logout', 'logout')->name('logout');
         Route::post('notifications/clear','notificationsClear')->name('notifications.clear');
+    });
+    Route::controller(HealthMonitoringController::class)->prefix('monitoring')->name('monitoring.')->group(function () {
+        Route::get('health', 'index')->name('health');
     });
     // Admin Profile
     Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
