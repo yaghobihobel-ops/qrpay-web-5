@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\TrxSettingsController;
 use App\Http\Controllers\Admin\AddMoneyController;
+use App\Http\Controllers\Admin\ApiHelpController;
 use App\Http\Controllers\Admin\AdminCareController;
 use App\Http\Controllers\Admin\AgentCareController;
 use App\Http\Controllers\Admin\AppOnboardScreensController;
@@ -68,6 +69,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('logout', 'logout')->name('logout');
         Route::post('notifications/clear','notificationsClear')->name('notifications.clear');
     });
+
+    Route::get('api-guide', [ApiHelpController::class, 'index'])->name('api.guide');
     // Admin Profile
     Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
         Route::get('index', 'index')->name('index');

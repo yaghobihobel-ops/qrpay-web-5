@@ -30,6 +30,13 @@
                     'icon'      => "menu-icon las la-rocket",
                 ])
 
+                @include('admin.components.side-nav.link',[
+                    'route'     => 'admin.api.guide',
+                    'title'     => __("API Guide"),
+                    'icon'      => "menu-icon las la-book",
+                    'dusk'      => 'sidebar-api-guide',
+                ])
+
                 {{-- Section Default --}}
                 @include('admin.components.side-nav.link-group',[
                     'group_title'       => __("DEFAULT"),
