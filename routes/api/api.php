@@ -2,6 +2,7 @@
 
 use App\Constants\GlobalConst;
 use App\Http\Controllers\Api\AppSettingsController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\User\AddMoneyController;
 use App\Http\Controllers\Api\User\AgentMoneyOutController;
 use App\Http\Controllers\Api\User\Auth\ForgotPasswordController;
@@ -62,6 +63,7 @@ Route::get('get/basic/data', function() {
     $message =  ['success'=>[__('Basic information fetch successfully')]];
     return Helpers::success($data,$message);
 });
+Route::get('health', [HealthController::class, 'index'])->name('api.health');
 Route::controller(AppSettingsController::class)->prefix("app-settings")->group(function(){
     Route::get('/','appSettings');
     Route::get('languages','languages')->withoutMiddleware(['system.maintenance.api']);
