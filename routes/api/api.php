@@ -2,6 +2,7 @@
 
 use App\Constants\GlobalConst;
 use App\Http\Controllers\Api\AppSettingsController;
+use App\Http\Controllers\Api\Sandbox\SandboxSimulationController;
 use App\Http\Controllers\Api\User\AddMoneyController;
 use App\Http\Controllers\Api\User\AgentMoneyOutController;
 use App\Http\Controllers\Api\User\Auth\ForgotPasswordController;
@@ -49,6 +50,16 @@ Route::get('/clear-cache', function() {
     $message =  ['success'=>[__('Clear cache successfully')]];
     return Helpers::onlysuccess($message);
 });
+
+Route::prefix('sandbox')->group(function () {
+    Route::get('payments', [SandboxSimulationController::class, 'payments']);
+    Route::post('payments', [SandboxSimulationController::class, 'storePayment']);
+    Route::get('exchange-rates', [SandboxSimulationController::class, 'exchangeRates']);
+    Route::get('billers', [SandboxSimulationController::class, 'billers']);
+    Route::get('airtime/countries', [SandboxSimulationController::class, 'airtimeCountries']);
+    Route::get('gift-cards', [SandboxSimulationController::class, 'giftCards']);
+});
+
 Route::get('get/basic/data', function() {
     $basic_settings = BasicSettingsProvider::get();
     $user_kyc = SetupKyc::userKyc()->first();
