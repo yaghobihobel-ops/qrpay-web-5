@@ -102,5 +102,6 @@ class Kernel extends HttpKernel
         'user.registration.permission'  => \App\Http\Middleware\User\RegistrationPermission::class,
         'agent.registration.permission'  => \App\Http\Middleware\Agent\RegistrationPermission::class,
         'merchant.registration.permission'  => \App\Http\Middleware\Merchant\RegistrationPermission::class,
+        'domain.rate_limit' => \App\Http\Middleware\DomainRateLimiter::class,
     ];
 }
