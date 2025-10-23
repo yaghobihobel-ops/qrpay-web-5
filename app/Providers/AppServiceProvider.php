@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Audit\AuditLogger;
+use App\Traits\Audit\LogsAudit;
+use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
@@ -15,6 +18,8 @@ ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
 class AppServiceProvider extends ServiceProvider
 {
+    use LogsAudit;
+
     /**
      * Register any application services.
      *
@@ -22,7 +27,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton(AuditLogger::class, function ($app) {
+            return new AuditLogger($app->make(Request::class));
+        });
     }
 
     /**
@@ -40,6 +47,16 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        $this->logAuditAction('app_service_provider.boot', [
+            'payload' => [
+                'force_https' => config('app.force_https'),
+            ],
+            'result' => [
+                'validators_extended' => true,
+            ],
+            'status' => 'success',
+        ]);
     }
 
     /**
