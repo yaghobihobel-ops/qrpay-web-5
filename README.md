@@ -13,3 +13,10 @@ Current Version: 5.0.0
 Please Use This Commands On Your Terminal To Update Full System
 1. To Run project Please Run This Command On Your Terminal
     composer update && composer dumpautoload && php artisan migrate:fresh --seed && php artisan passport:install --force
+
+### FX
+
+- Official foreign exchange providers for Iran (NIMA), China (PBOC), Turkey (TCMB) and Russia (CBR) can be configured from `config/exchange.php`. Each provider is queried in the order defined by `fallback_order`, so outages automatically fail over to the next service.
+- Refresh rates with `php artisan exchange:update`. Pass `--symbols=USD,EUR` to limit the currencies fetched or `--sync` to process without queue workers.
+- Updated rates are cached (see the `exchange.cache_store` option) and persisted for payments/withdrawals through the `SyncExchangeRates` job.
+- Run the FX integration tests with `php artisan test --group=exchange` or `php artisan test --filter=ExchangeRateIntegrationTest` to validate fallback behaviour and persistence.

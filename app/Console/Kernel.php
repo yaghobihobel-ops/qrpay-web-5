@@ -21,6 +21,7 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping();
 
         $schedule->command('currency:update')->daily();
+        $schedule->command('exchange:update')->hourly();
     }
 
     /**
