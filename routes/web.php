@@ -45,9 +45,14 @@ Route::controller(SiteController::class)->group(function(){
 
 Route::controller(DeveloperController::class)->prefix('developer')->name('developer.')->group(function(){
     Route::get('/','index')->name('index');
+    Route::get('quick-start','quickStart')->name('quickstart');
     Route::get('prerequisites','prerequisites')->name('prerequisites');
     Route::get('authentication','authentication')->name('authentication');
     Route::get('base-url','baseUrl')->name('base.url');
+    Route::get('sandbox','sandbox')->name('sandbox');
+    Route::get('openapi','openapi')->name('openapi');
+    Route::get('postman','postman')->name('postman');
+    Route::get('feedback','feedback')->name('feedback');
     Route::get('access.token','accessToken')->name('access.token');
     Route::get('initiate-payment','initiatePayment')->name('initiate.payment');
     Route::get('check-status-payment','checkStatusPayment')->name('check.status.payment');
