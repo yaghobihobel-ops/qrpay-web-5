@@ -49,6 +49,8 @@ class User extends Authenticatable
         'stripe_connected_account'       => 'object',
         'remember_token'           => 'string',
         'strowallet_customer'       => 'object',
+        'is_sensitive'              => 'boolean',
+        'compliance_flags'          => 'array',
         'deleted_at'           => 'datetime',
         'created_at'           => 'datetime',
         'updated_at'           => 'datetime',
