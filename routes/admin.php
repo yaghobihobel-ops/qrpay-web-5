@@ -35,6 +35,7 @@ use App\Http\Controllers\Admin\PaymentLinkController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ProfitLogsController;
 use App\Http\Controllers\Admin\PushNotificationController;
+use App\Http\Controllers\Admin\QueueMonitorController;
 use App\Http\Controllers\Admin\RemitanceController;
 use App\Http\Controllers\Admin\RequestMoneyController;
 use App\Http\Controllers\Admin\SendMoneyController;
@@ -585,6 +586,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::controller(ServerInfoController::class)->prefix('server-info')->name('server.info.')->group(function () {
         Route::get('index', 'index')->name('index');
     });
+
+    Route::get('queues/horizon', [QueueMonitorController::class, 'index'])->name('queues.horizon');
 
     // Support Ticked Section
     Route::controller(SupportTicketController::class)->prefix('support-ticket')->name('support.ticket.')->group(function () {
