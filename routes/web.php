@@ -43,6 +43,8 @@ Route::controller(SiteController::class)->group(function(){
 
 });
 
+Route::view('docs', 'docs.index')->name('docs.index');
+
 Route::controller(DeveloperController::class)->prefix('developer')->name('developer.')->group(function(){
     Route::get('/','index')->name('index');
     Route::get('prerequisites','prerequisites')->name('prerequisites');

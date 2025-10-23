@@ -749,6 +749,10 @@
                                     <i class="menu-icon las la-ellipsis-h"></i>
                                     <span class="menu-title">{{ __("Developer FAQ") }}</span>
                                 </a>
+                                <a href="{{ setRoute('admin.developer.portal.guide') }}" class="nav-link @if ($current_url == setRoute('admin.developer.portal.guide')) active @endif">
+                                    <i class="menu-icon las la-book"></i>
+                                    <span class="menu-title">{{ __("Developer Portal Guide") }}</span>
+                                </a>
                                 <a href="{{ setRoute('admin.setup.sections.section','contact-us-section') }}" class="nav-link @if ($current_url == setRoute('admin.setup.sections.section','contact-us-section')) active @endif">
                                     <i class="menu-icon las la-ellipsis-h"></i>
                                     <span class="menu-title">{{ __("Contact Us Section") }}</span>
