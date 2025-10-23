@@ -10,6 +10,7 @@ use App\Models\Admin\Currency;
 use App\Models\Admin\ExchangeRate;
 use App\Models\Admin\PaymentGatewayCurrency;
 use App\Models\LiveExchangeRateApiSetting;
+use App\Services\Cache\GlobalCacheService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -86,6 +87,8 @@ class LiveExchangeRateApiController extends Controller
                 }
             }
             $provider->fill($data)->save();
+            GlobalCacheService::forgetProvider($provider->slug);
+            GlobalCacheService::forgetExchangeRates();
         }catch(Exception $e){
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
@@ -124,6 +127,7 @@ class LiveExchangeRateApiController extends Controller
             $provider->update([
                 'status'        => $status[$validated['status']],
             ]);
+            GlobalCacheService::forgetProvider($provider->slug);
         }catch(Exception $e) {
             $error = ['error' => [__("Something went wrong! Please try again.")]];
             return Response::error($error,null,500);
@@ -181,6 +185,7 @@ class LiveExchangeRateApiController extends Controller
             $page->update([
                 $field => ($validated['status'] == true) ? false : true,
             ]);
+            GlobalCacheService::forgetProvider($page->slug);
         }catch(Exception $e) {
             $error = ['error' => [__("Something went wrong! Please try again.")]];
             return Response::error($error,null,500);
@@ -192,13 +197,15 @@ class LiveExchangeRateApiController extends Controller
     public function sendRequestApi(Request $request){
 
         try{
-            $api_rates = (new CurrencyLayer())->getLiveExchangeRates();
+            $api_rates = (new CurrencyLayer())->getLiveExchangeRates(true);
 
             if(isset($api_rates) && $api_rates['status'] == false){
                 return back()->with(['error' => [$api_rates['message'] ??__("Something went wrong! Please try again.")]]);
             }
             $api_rates =  $api_rates['data'];
-            $provider = LiveExchangeRateApiSetting::where('slug',GlobalConst::CURRENCY_LAYER)->first();
+            $provider = GlobalCacheService::rememberProvider(GlobalConst::CURRENCY_LAYER, function () {
+                return LiveExchangeRateApiSetting::where('slug',GlobalConst::CURRENCY_LAYER)->first();
+            }, true);
 
             // For Setup Currency Rate Update
             if( $provider->currency_module == 1){

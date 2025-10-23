@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'sync'),
+    'default' => env('QUEUE_CONNECTION', 'redis'),
 
     /*
     |--------------------------------------------------------------------------
@@ -71,6 +71,33 @@ return [
             'after_commit' => false,
         ],
 
+        'payments' => [
+            'driver' => 'redis',
+            'connection' => env('QUEUE_PAYMENTS_CONNECTION', 'default'),
+            'queue' => env('QUEUE_PAYMENTS_NAME', 'payments'),
+            'retry_after' => env('QUEUE_PAYMENTS_RETRY_AFTER', 120),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        'exchange' => [
+            'driver' => 'redis',
+            'connection' => env('QUEUE_EXCHANGE_CONNECTION', 'default'),
+            'queue' => env('QUEUE_EXCHANGE_NAME', 'exchange'),
+            'retry_after' => env('QUEUE_EXCHANGE_RETRY_AFTER', 120),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        'withdrawals' => [
+            'driver' => 'redis',
+            'connection' => env('QUEUE_WITHDRAWALS_CONNECTION', 'default'),
+            'queue' => env('QUEUE_WITHDRAWALS_NAME', 'withdrawals'),
+            'retry_after' => env('QUEUE_WITHDRAWALS_RETRY_AFTER', 120),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
     ],
 
     /*
@@ -88,6 +115,21 @@ return [
         'driver' => env('QUEUE_FAILED_DRIVER', 'database-uuids'),
         'database' => env('DB_CONNECTION', 'mysql'),
         'table' => 'failed_jobs',
+    ],
+
+    'domain_queues' => [
+        'payments' => [
+            'connection' => 'payments',
+            'queue' => env('QUEUE_PAYMENTS_NAME', 'payments'),
+        ],
+        'exchange' => [
+            'connection' => 'exchange',
+            'queue' => env('QUEUE_EXCHANGE_NAME', 'exchange'),
+        ],
+        'withdrawals' => [
+            'connection' => 'withdrawals',
+            'queue' => env('QUEUE_WITHDRAWALS_NAME', 'withdrawals'),
+        ],
     ],
 
 ];

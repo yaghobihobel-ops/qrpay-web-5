@@ -1,0 +1,75 @@
+name: Performance Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, dom, fileinfo, pdo_sqlite
+          coverage: none
+
+      - name: Install Composer Dependencies
+        run: composer install --no-progress --no-interaction --prefer-dist
+
+      - name: Prepare Environment
+        run: |
+          cp .env.example .env
+          php -r "file_put_contents('.env', preg_replace('/^DB_CONNECTION=.*/m', 'DB_CONNECTION=sqlite', file_get_contents('.env')));"
+          php -r "file_put_contents('.env', preg_replace('/^CACHE_DRIVER=.*/m', 'CACHE_DRIVER=array', file_get_contents('.env')));"
+          php -r "file_put_contents('.env', preg_replace('/^QUEUE_CONNECTION=.*/m', 'QUEUE_CONNECTION=sync', file_get_contents('.env')));"
+          touch database/database.sqlite
+          php artisan key:generate
+          php artisan migrate --force
+
+      - name: Start Application Server
+        run: php artisan serve --host=0.0.0.0 --port=8000 > storage/logs/serve.log 2>&1 &
+
+      - name: Wait for Application
+        run: |
+          for i in {1..10}; do
+            if curl -sSf http://127.0.0.1:8000 > /dev/null; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Application failed to start"
+          cat storage/logs/serve.log || true
+          exit 1
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v0.2
+        with:
+          version: v0.45.0
+
+      - name: Run k6 Load Test
+        env:
+          BASE_URL: http://127.0.0.1:8000
+        run: |
+          k6 run tests/performance/basic.js --vus 10 --duration 30s
+
+      - name: Archive k6 Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results
+          path: ~/.k6
+          if-no-files-found: ignore

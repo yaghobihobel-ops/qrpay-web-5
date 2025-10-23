@@ -206,6 +206,8 @@ return [
 
         // Custom Service Provider
         App\Providers\CustomServiceProvider::class,
+        App\Providers\QueueMonitoringServiceProvider::class,
+        App\Providers\HorizonServiceProvider::class,
         \Torann\GeoIP\GeoIPServiceProvider::class,
 
         // Get Client Device Location

@@ -41,6 +41,7 @@ use App\Models\StrowalletVirtualCard;
 use Project\Installer\Helpers\DBHelper as InstallerDBHelper;
 use App\Models\SudoVirtualCard;
 use App\Models\TransactionCharge;
+use App\Services\Cache\GlobalCacheService;
 use App\Models\UserAuthorization;
 use App\Models\UserNotification;
 use App\Models\UserSupportTicket;
@@ -2986,9 +2987,11 @@ function systemCurrenciesCodeArray(){
     return $unique_currency_codes??[];
 }
 function updateAbleCurrency(){
-    $live_exchange_api = LiveExchangeRateApiSetting::where('slug',GlobalConst::CURRENCY_LAYER)->first();
+    $live_exchange_api = GlobalCacheService::rememberProvider(GlobalConst::CURRENCY_LAYER, function () {
+        return LiveExchangeRateApiSetting::where('slug',GlobalConst::CURRENCY_LAYER)->first();
+    });
 
-    $api_currency_list = $live_exchange_api->value?->supported_currencies ?? [];
+    $api_currency_list = $live_exchange_api?->value?->supported_currencies ?? [];
 
     $system_currency_list = systemCurrenciesCodeArray()??[];
 

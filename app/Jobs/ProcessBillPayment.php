@@ -21,6 +21,9 @@ class ProcessBillPayment implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public $connection = 'payments';
+    public $queue = 'payments';
+
     /**
      * Create a new job instance.
      *
