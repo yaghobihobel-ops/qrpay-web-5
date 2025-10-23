@@ -4,12 +4,16 @@ namespace App\Providers;
 
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\VirtualCard\KycProviderInterface;
+use App\Services\VirtualCard\StrowalletVirtualCardService;
+use App\Services\VirtualCard\VirtualCardProviderInterface;
+use GuzzleHttp\Client;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ServiceProvider;
 
 ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
@@ -19,10 +23,15 @@ class AppServiceProvider extends ServiceProvider
      * Register any application services.
      *
      * @return void
-     */
+    */
     public function register()
     {
-        //
+        $this->app->singleton(StrowalletVirtualCardService::class, function () {
+            return new StrowalletVirtualCardService(new Client());
+        });
+
+        $this->app->bind(VirtualCardProviderInterface::class, StrowalletVirtualCardService::class);
+        $this->app->bind(KycProviderInterface::class, StrowalletVirtualCardService::class);
     }
 
     /**
