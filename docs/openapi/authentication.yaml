@@ -1,0 +1,57 @@
+openapi: 3.0.3
+info:
+  title: QRPay Authentication Extensions
+  version: "1.0.0"
+  description: |
+    This addendum documents the role and permission requirements introduced for the
+    QRPay API. Access tokens issued through the new `TokenService` can contain both
+    OAuth scopes (for Laravel Passport personal access tokens) and JWT claims. The
+    `ensure.scope` middleware enforces scopes, roles, and permissions for every
+    protected endpoint.
+components:
+  securitySchemes:
+    PassportAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: "Passport Personal Token"
+      description: |
+        Generated via `TokenService::issuePersonalAccessToken`. Include the token in
+        the `Authorization` header using the `Bearer` scheme. Scopes attached to the
+        access token are enforced by the `ensure.scope` middleware.
+    JwtAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Generated via `TokenService::issueJwtToken`. JWT claims must include `sub`,
+        `jti`, and may optionally include `scopes`, `roles`, and `permissions` arrays.
+        Revoked JWTs are tracked by cache key `auth:jwt:blacklist:{jti}`.
+paths:
+  /api/v1/example-secured-endpoint:
+    get:
+      summary: Example endpoint protected by ensure.scope middleware
+      description: |
+        Demonstrates how scopes, roles, and permissions are enforced. Replace the
+        placeholder path with the actual endpoint in your Postman collection.
+      security:
+        - PassportAccessToken:
+            - payments.manage
+        - JwtAccessToken:
+            - payments.manage
+      tags:
+        - authorization
+      responses:
+        '200':
+          description: Successful response when token includes the `payments.manage`
+            scope and the calling subject has the `finance-admin` role and
+            `transactions.approve` permission.
+        '403':
+          description: Returned when the token fails scope, role, or permission
+            validation in the `ensure.scope` middleware.
+        '401':
+          description: Returned when the provided bearer token is missing, expired,
+            or revoked.
+      x-required-roles:
+        - finance-admin
+      x-required-permissions:
+        - transactions.approve
