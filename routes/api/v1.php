@@ -91,7 +91,7 @@ Route::prefix('user')->group(function(){
     });
 
     Route::post('register',[LoginController::class,'register'])->middleware(['user.registration.permission']);
-    Route::post('login',[LoginController::class,'login']);
+    Route::post('login',[LoginController::class,'login'])->middleware('throttle:user-login');
 
     //forget password for email
     Route::prefix('forget')->group(function(){
