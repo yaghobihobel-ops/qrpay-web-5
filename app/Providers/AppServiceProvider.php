@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Payments\InternalWalletService;
+use App\Services\Payments\Regional\RegionalPaymentManager;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ServiceProvider;
 
 ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
@@ -22,7 +24,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton(InternalWalletService::class, fn () => new InternalWalletService());
+
+        $this->app->singleton(RegionalPaymentManager::class, function ($app) {
+            return new RegionalPaymentManager(
+                $app->make(InternalWalletService::class),
+                config('payments.regional_providers', [])
+            );
+        });
+
+        $this->app->alias(RegionalPaymentManager::class, 'regional.payment.manager');
     }
 
     /**
