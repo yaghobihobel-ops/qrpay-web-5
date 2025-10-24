@@ -124,7 +124,7 @@ class ReloadlyAirtimeProvider implements AirtimeProvider
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $access_token,
-                'Accept: application/com.reloadly.topups-v1+json',
+                'Accept' => 'application/com.reloadly.topups-v1+json',
             ])->get($request_endpoint)->throw(function (Response $response, RequestException $exception) {
                 // handled below
             })->json();
@@ -154,7 +154,7 @@ class ReloadlyAirtimeProvider implements AirtimeProvider
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $access_token,
-                'Accept: application/com.reloadly.utilities-v1+json',
+                'Accept' => 'application/com.reloadly.utilities-v1+json',
             ])->get($request_endpoint)->throw(function (Response $response, RequestException $exception) {
                 // handled below
             })->json();
@@ -185,7 +185,7 @@ class ReloadlyAirtimeProvider implements AirtimeProvider
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->access_token,
-                'Accept: application/com.reloadly.topups-v1+json',
+                'Accept' => 'application/com.reloadly.topups-v1+json',
             ])->post($endpoint, $data)->throw(function (Response $response, RequestException $exception) {
                 $response_array = $response->json();
                 $message = $response_array['message'] ?? '';
