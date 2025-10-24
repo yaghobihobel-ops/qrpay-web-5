@@ -25,6 +25,15 @@ class LanguageSeeder extends Seeder
 
             ],
             [
+                'name'          => "Persian",
+                'code'          => "fa",
+                'status'        => 0,
+                'last_edit_by'  => 1,
+                'dir'           => 'rtl',
+                'created_at'    => now(),
+
+            ],
+            [
                 'name'          => "Spanish",
                 'code'          => "es",
                 'status'        => 0,
@@ -59,7 +68,43 @@ class LanguageSeeder extends Seeder
                 'dir'           => 'ltr',
                 'created_at'    => now(),
 
-            ]
+            ],
+            [
+                'name'          => "Chinese",
+                'code'          => "zh",
+                'status'        => 0,
+                'last_edit_by'  => 1,
+                'dir'           => 'ltr',
+                'created_at'    => now(),
+
+            ],
+            [
+                'name'          => "Russian",
+                'code'          => "ru",
+                'status'        => 0,
+                'last_edit_by'  => 1,
+                'dir'           => 'ltr',
+                'created_at'    => now(),
+
+            ],
+            [
+                'name'          => "Turkish",
+                'code'          => "tr",
+                'status'        => 0,
+                'last_edit_by'  => 1,
+                'dir'           => 'ltr',
+                'created_at'    => now(),
+
+            ],
+            [
+                'name'          => "Pashto",
+                'code'          => "ps",
+                'status'        => 0,
+                'last_edit_by'  => 1,
+                'dir'           => 'rtl',
+                'created_at'    => now(),
+
+            ],
         ];
 
         Language::truncate();

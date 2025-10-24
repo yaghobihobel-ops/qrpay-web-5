@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\User\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\User\Auth\LoginController;
 use App\Http\Controllers\Api\User\AuthorizationController;
 use App\Http\Controllers\Api\User\BillPayController;
+use App\Http\Controllers\Api\User\CardIssuanceController;
 use App\Http\Controllers\Api\User\GiftCardController;
 use App\Http\Controllers\Api\User\MakePaymentController;
 use App\Http\Controllers\Api\User\MobileTopupController;
@@ -180,6 +181,14 @@ Route::prefix('user')->group(function(){
                     Route::post('unblock','cardUnBlock')->name('block');
                     Route::post('make-remove/default','makeDefaultOrRemove');
                 });
+            });
+
+            // modular card issuance APIs powered by country providers
+            Route::controller(CardIssuanceController::class)->prefix('cards')->group(function(){
+                Route::post('issue','issue')->middleware('api.kyc');
+                Route::post('activate','activate')->middleware('api.kyc');
+                Route::post('block','block')->middleware('api.kyc');
+                Route::post('limits','limits')->middleware('api.kyc');
             });
 
              //add money

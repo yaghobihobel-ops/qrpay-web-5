@@ -127,7 +127,13 @@ class SiteController extends Controller
     public function changeLanguage($lang = null)
     {
         $language = Language::where('code', $lang)->first();
+
+        if (! $language) {
+            $lang = app(\App\Support\Localization\LocaleManager::class)->fallback();
+        }
+
         session()->put('local', $lang);
+        session()->put('lang', $lang);
         return redirect()->back();
     }
     public function usefulPage($slug){

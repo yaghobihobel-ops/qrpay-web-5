@@ -43,6 +43,7 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/",
+            "Modules\\": "modules/",
             "Project\\Installer\\": "resources/installer/src/"
         },
         "files": [

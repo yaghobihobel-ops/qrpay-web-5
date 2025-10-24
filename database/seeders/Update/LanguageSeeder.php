@@ -16,20 +16,55 @@ class LanguageSeeder extends Seeder
 
     {
         removeLangJson();
-        $data = [
-
+        $candidates = [
             [
-                'name'          => "Hindi",
-                'code'          => "hi",
-                'status'        => 0,
-                'last_edit_by'  => 1,
-                'dir'           => 'ltr',
-                'created_at'    => now(),
-
-            ]
+                'name' => 'Hindi',
+                'code' => 'hi',
+                'dir'  => 'ltr',
+            ],
+            [
+                'name' => 'Persian',
+                'code' => 'fa',
+                'dir'  => 'rtl',
+            ],
+            [
+                'name' => 'Chinese',
+                'code' => 'zh',
+                'dir'  => 'ltr',
+            ],
+            [
+                'name' => 'Russian',
+                'code' => 'ru',
+                'dir'  => 'ltr',
+            ],
+            [
+                'name' => 'Turkish',
+                'code' => 'tr',
+                'dir'  => 'ltr',
+            ],
+            [
+                'name' => 'Pashto',
+                'code' => 'ps',
+                'dir'  => 'rtl',
+            ],
         ];
-        if(!Language::where('code','hi')->exists()){
-            Language::insert($data);
+
+        $records = [];
+
+        foreach ($candidates as $language) {
+            if (Language::where('code', $language['code'])->exists()) {
+                continue;
+            }
+
+            $records[] = array_merge($language, [
+                'status' => 0,
+                'last_edit_by' => 1,
+                'created_at' => now(),
+            ]);
+        }
+
+        if (! empty($records)) {
+            Language::insert($records);
         }
 
     }

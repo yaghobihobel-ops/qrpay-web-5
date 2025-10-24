@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Admin\Language;
+use App\Support\Localization\LocaleManager;
 use Closure;
 
 class LanguageMiddleware
@@ -16,8 +17,15 @@ class LanguageMiddleware
      */
     public function handle($request, Closure $next)
     {
-        session()->put('lang', $this->getCode());
-        app()->setLocale(session('lang',  $this->getCode()));
+        $code = $this->getCode();
+
+        session()->put('lang', $code);
+
+        if (! session()->has('local')) {
+            session()->put('local', $code);
+        }
+
+        app()->setLocale(session('local', $code));
         return $next($request);
     }
 
@@ -27,7 +35,12 @@ class LanguageMiddleware
             return session('lang');
         }
         $language = Language::where('status', 1)->first();
-        return $language ? $language->code : 'en';
+
+        if ($language) {
+            return $language->code;
+        }
+
+        return app(LocaleManager::class)->default();
     }
 
 

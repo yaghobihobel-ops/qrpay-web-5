@@ -33,6 +33,10 @@ class RouteServiceProvider extends ServiceProvider
                 ->prefix('api')
                 ->group(base_path('routes/api/api.php'));
 
+            Route::middleware('api')
+                ->prefix('webhooks')
+                ->group(base_path('routes/api/webhooks.php'));
+
             Route::middleware(['system.maintenance.api','api'])
             ->prefix('merchant-api')
                 ->group(base_path('routes/api/merchant_api.php'));
