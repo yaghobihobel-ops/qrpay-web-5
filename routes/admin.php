@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\GiftCardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\TrxSettingsController;
 use App\Http\Controllers\Admin\AddMoneyController;
 use App\Http\Controllers\Admin\AdminCareController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Admin\PaymentLinkController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ProfitLogsController;
 use App\Http\Controllers\Admin\PushNotificationController;
+use App\Http\Controllers\Admin\QueueMonitorController;
 use App\Http\Controllers\Admin\RemitanceController;
 use App\Http\Controllers\Admin\RequestMoneyController;
 use App\Http\Controllers\Admin\SendMoneyController;
@@ -68,6 +70,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('logout', 'logout')->name('logout');
         Route::post('notifications/clear','notificationsClear')->name('notifications.clear');
     });
+
+    Route::get('documentation', [DocumentationController::class, 'index'])->name('documentation.index');
     // Admin Profile
     Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
         Route::get('index', 'index')->name('index');
@@ -585,6 +589,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::controller(ServerInfoController::class)->prefix('server-info')->name('server.info.')->group(function () {
         Route::get('index', 'index')->name('index');
     });
+
+    Route::get('queues/horizon', [QueueMonitorController::class, 'index'])->name('queues.horizon');
 
     // Support Ticked Section
     Route::controller(SupportTicketController::class)->prefix('support-ticket')->name('support.ticket.')->group(function () {

@@ -41,6 +41,10 @@ use Illuminate\Support\Facades\Artisan;
 |
 */
 
+Route::get('version-info', function () {
+    return response()->json(['version' => 'v1']);
+});
+
 Route::get('/clear-cache', function() {
     Artisan::call('cache:clear');
     Artisan::call('config:clear');
@@ -87,7 +91,7 @@ Route::prefix('user')->group(function(){
     });
 
     Route::post('register',[LoginController::class,'register'])->middleware(['user.registration.permission']);
-    Route::post('login',[LoginController::class,'login']);
+    Route::post('login',[LoginController::class,'login'])->middleware('throttle:user-login');
 
     //forget password for email
     Route::prefix('forget')->group(function(){

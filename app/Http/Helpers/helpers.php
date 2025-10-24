@@ -14,6 +14,7 @@ use Buglinjo\LaravelWebp\Facades\Webp;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Password;
 use App\Models\Admin\AdminNotification;
 use App\Constants\NotificationConst;
 use App\Constants\PaymentGatewayConst;
@@ -3029,4 +3030,38 @@ function get_wallet_precision($default_currency = null){
         return $default_currency->type == "CRYPTO" ? 2  : 8;
     }
     return 2;
+}
+
+if (! function_exists('security_password_rules')) {
+    function security_password_rules(bool $confirmed = true): array
+    {
+        $policy = config('security.password_policy');
+        $rule = Password::min($policy['min_length'] ?? 12);
+
+        if (($policy['require_lowercase'] ?? true) || ($policy['require_uppercase'] ?? true)) {
+            $rule = $rule->letters();
+        }
+
+        if ($policy['require_uppercase'] ?? true) {
+            $rule = $rule->mixedCase();
+        }
+
+        if ($policy['require_number'] ?? true) {
+            $rule = $rule->numbers();
+        }
+
+        if ($policy['require_symbol'] ?? true) {
+            $rule = $rule->symbols();
+        }
+
+        $rule = $rule->uncompromised();
+
+        $rules = ['required', $rule];
+
+        if ($confirmed) {
+            $rules[] = 'confirmed';
+        }
+
+        return $rules;
+    }
 }
