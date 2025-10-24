@@ -1,0 +1,9 @@
+additionalProperties:
+  npmName: "@qrpay/sdk"
+  npmVersion: "1.0.0"
+  npmRepository: "https://npm.pkg.github.com"
+  supportsES6: true
+  useSingleRequestParameter: true
+  withSeparateModelsAndApi: true
+  apiPackage: "apis"
+  modelPackage: "models"

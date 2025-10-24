@@ -1,0 +1,9 @@
+additionalProperties:
+  invokerPackage: QRPay\\Sdk
+  packageName: qrpay/sdk
+  composerProjectName: qrpay/sdk
+  gitUserId: qrpay
+  gitRepoId: php-sdk
+  packageVersion: 1.0.0
+  artifactVersion: 1.0.0
+  srcBasePath: src
