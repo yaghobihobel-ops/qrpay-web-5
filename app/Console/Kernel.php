@@ -21,6 +21,7 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping();
 
         $schedule->command('currency:update')->daily();
+        $schedule->command('audit:enforce-retention')->dailyAt('01:00');
     }
 
     /**

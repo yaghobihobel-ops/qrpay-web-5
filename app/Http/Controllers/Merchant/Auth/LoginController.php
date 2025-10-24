@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Merchant\Auth;
 use App\Constants\ExtensionConst;
 use App\Http\Controllers\Controller;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Security\DeviceFingerprintService;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -128,6 +129,7 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user)
     {
+        $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
         $user->update([
             'two_factor_verified'   => false,
         ]);
@@ -136,7 +138,7 @@ class LoginController extends Controller
         $this->createDeveloperApi($user);
         $this->refreshSandboxWallets($user);
         $this->createGatewaySetting($user);
-        $this->createLoginLog($user);
+        $this->createLoginLog($user, $fingerprint);
         return redirect()->intended(route('merchant.dashboard'));
     }
 }

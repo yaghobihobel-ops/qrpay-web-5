@@ -4,6 +4,7 @@ namespace App\Traits\Merchant;
 
 use App\Constants\PaymentGatewayConst;
 use App\Models\Admin\Currency;
+use App\Models\DeviceFingerprint;
 use App\Models\Merchants\DeveloperApiCredential;
 use App\Models\Merchants\GatewaySetting;
 use App\Models\Merchants\MerchantLoginLog;
@@ -36,7 +37,7 @@ trait LoggedInUsers {
         }
     }
 
-    protected function createLoginLog($user) {
+    protected function createLoginLog($user, ?DeviceFingerprint $fingerprint = null) {
         $client_ip = request()->ip() ?? false;
         $location = geoip()->getLocation($client_ip);
         $agent = new Agent();
@@ -57,6 +58,7 @@ trait LoggedInUsers {
             'timezone'      => $location['timezone'] ?? "",
             'browser'       => $agent->browser() ?? "",
             'os'            => $agent->platform() ?? "",
+            'device_fingerprint_id' => $fingerprint?->id,
         ];
 
         try{

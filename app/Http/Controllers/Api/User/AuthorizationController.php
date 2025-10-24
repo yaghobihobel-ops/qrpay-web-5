@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\User;
 
 use App\Constants\GlobalConst;
 use App\Http\Controllers\Controller;
+use App\Traits\Compliance\HandlesComplianceScreening;
 use App\Http\Helpers\Api\Helpers;
 use App\Models\Admin\SetupKyc;
 use App\Models\User;
@@ -11,6 +12,7 @@ use App\Models\UserAuthorization;
 use App\Notifications\User\Auth\SendAuthorizationCode;
 use App\Notifications\User\Auth\SendVerifyCode;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Security\DeviceFingerprintService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -22,6 +24,7 @@ use Illuminate\Support\Facades\Notification;
 
 class AuthorizationController extends Controller
 {
+    use HandlesComplianceScreening;
     use ControlDynamicInputFields;
     protected $basic_settings;
 
@@ -123,6 +126,7 @@ class AuthorizationController extends Controller
             $user->update([
                 'two_factor_verified'   => true,
             ]);
+            app(DeviceFingerprintService::class)->trustCurrent($request, $user);
             $message = ['success'=>[ __("Two factor verified successfully")]];
             return Helpers::onlySuccess($message);
         }
@@ -185,6 +189,7 @@ class AuthorizationController extends Controller
                 'kyc_verified'  => GlobalConst::PENDING,
             ]);
             DB::commit();
+            $this->runComplianceScreening($user, $get_values);
         }catch(Exception $e) {
             DB::rollBack();
             $user->update([
