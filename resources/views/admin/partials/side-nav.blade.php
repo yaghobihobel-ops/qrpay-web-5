@@ -549,6 +549,14 @@
                     'icon'      => "menu-icon las la-tools",
                 ])
 
+                @if (class_exists('\\Laravel\\Horizon\\Horizon'))
+                    @include('admin.components.side-nav.link',[
+                        'route'     => 'admin.queues.horizon',
+                        'title'     => __("Queue Monitor"),
+                        'icon'      => "menu-icon las la-tachometer-alt",
+                    ])
+                @endif
+
                 {{-- Verification Center --}}
                 @include('admin.components.side-nav.link-group',[
                     'group_title'       => __("VERIFICATION CENTER"),
