@@ -2,7 +2,9 @@
 
 namespace App\Services\Cache;
 
+use App\Models\UserWallet;
 use Closure;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -73,12 +75,34 @@ class GlobalCacheService
             Cache::forget($cacheKey);
         }
 
+        $currentSignature = self::userAccountSignature($userId);
+
         if (!$force && Cache::has($cacheKey)) {
-            return Cache::get($cacheKey);
+            [$cachedValue, $cachedSignature] = self::normalizeUserAccountCache(Cache::get($cacheKey));
+
+            if ($cachedSignature !== null && $cachedSignature === $currentSignature) {
+                return $cachedValue;
+            }
         }
 
         $value = $resolver();
-        Cache::put($cacheKey, $value, self::ttl($ttl));
+
+        if ($value === null) {
+            Cache::forget($cacheKey);
+
+            return $value;
+        }
+
+        $freshSignature = self::userAccountSignature($userId);
+
+        Cache::put(
+            $cacheKey,
+            [
+                'user' => $value,
+                'signature' => $freshSignature,
+            ],
+            self::ttl($ttl)
+        );
 
         return $value;
     }
@@ -88,4 +112,45 @@ class GlobalCacheService
         Cache::forget("user:account-summary:{$userId}");
     }
 
+    protected static function normalizeUserAccountCache(mixed $cached): array
+    {
+        if (is_array($cached) && array_key_exists('user', $cached)) {
+            return [$cached['user'], $cached['signature'] ?? null];
+        }
+
+        return [$cached, null];
+    }
+
+    protected static function userAccountSignature(int $userId): string
+    {
+        $metrics = UserWallet::query()
+            ->where('user_id', $userId)
+            ->selectRaw('COALESCE(SUM(balance), 0) as total_balance, COUNT(*) as wallet_count, MAX(updated_at) as latest_update')
+            ->first();
+
+        $latestUpdate = $metrics?->latest_update;
+
+        if ($latestUpdate instanceof Carbon) {
+            $latestTimestamp = $latestUpdate->getTimestamp();
+        } elseif ($latestUpdate) {
+            $latestTimestamp = Carbon::parse($latestUpdate)->getTimestamp();
+        } else {
+            $latestTimestamp = 0;
+        }
+
+        $total = $metrics?->total_balance ?? 0;
+        $totalBalance = number_format((float) $total, 8, '.', '');
+        $totalBalance = rtrim(rtrim($totalBalance, '0'), '.');
+        if ($totalBalance === '') {
+            $totalBalance = '0';
+        }
+
+        $walletCount = (int) ($metrics?->wallet_count ?? 0);
+
+        return implode(':', [
+            $totalBalance,
+            (string) $walletCount,
+            (string) $latestTimestamp,
+        ]);
+    }
 }
