@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\GiftCardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\TrxSettingsController;
 use App\Http\Controllers\Admin\AddMoneyController;
 use App\Http\Controllers\Admin\AdminCareController;
@@ -69,6 +70,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('logout', 'logout')->name('logout');
         Route::post('notifications/clear','notificationsClear')->name('notifications.clear');
     });
+
+    Route::get('documentation', [DocumentationController::class, 'index'])->name('documentation.index');
     // Admin Profile
     Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
         Route::get('index', 'index')->name('index');
