@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Domain\ProviderOverrideRepository;
 use App\Services\Monitoring\DomainInstrumentation;
@@ -42,6 +44,8 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        Transaction::observe(TransactionObserver::class);
     }
 
     protected function registerResponseMacros(): void
