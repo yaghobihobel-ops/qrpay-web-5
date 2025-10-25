@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
 
 class HelpContentService
 {
@@ -48,12 +50,30 @@ class HelpContentService
         Cache::forget($this->manifestCacheKey);
     }
 
-    public function getSections(?string $language = null): array
+    public function getSections(?string $language = null, ?string $query = null): array
     {
         $manifest = $this->manifest();
         $defaultLanguage = $manifest['default_language'] ?? 'en';
 
+        $query = $query ? Str::lower(trim($query)) : null;
+
         return collect($manifest['sections'])
+            ->filter(function (array $section) use ($language, $defaultLanguage, $query) {
+                if (!$query) {
+                    return true;
+                }
+
+                $sectionDefault = $section['default_language'] ?? $defaultLanguage;
+                $resolvedLanguage = $language ?? $sectionDefault;
+                $haystack = Str::lower(implode(' ', array_filter([
+                    $this->translateField($section['title'] ?? [], $resolvedLanguage, $sectionDefault),
+                    $this->translateField($section['summary'] ?? [], $resolvedLanguage, $sectionDefault),
+                    implode(' ', $section['tags'] ?? []),
+                    $section['category'] ?? '',
+                ])));
+
+                return Str::contains($haystack, $query);
+            })
             ->map(function (array $section) use ($language, $defaultLanguage) {
                 $sectionDefault = $section['default_language'] ?? $defaultLanguage;
                 $resolvedLanguage = $language ?? $sectionDefault;
@@ -114,7 +134,8 @@ class HelpContentService
         }
 
         $raw = File::get($filePath);
-        $html = method_exists(Str::class, 'markdown') ? Str::markdown($raw) : Str::of($raw)->markdown();
+        $document = $this->parseDocument($raw);
+        $html = $this->toHtml($document['markdown']);
 
         $faqs = collect($versionData['faqs'] ?? [])->map(function (array $faq) use ($targetLanguage, $sectionDefault) {
             return [
@@ -136,7 +157,10 @@ class HelpContentService
             'language' => $targetLanguage,
             'released_at' => $versionData['released_at'] ?? null,
             'content' => $html,
-            'raw' => $raw,
+            'raw' => $document['markdown'],
+            'steps' => $document['steps'],
+            'media' => $document['media'],
+            'meta' => $document['meta'],
             'faqs' => $faqs,
         ];
     }
@@ -232,5 +256,142 @@ class HelpContentService
         });
 
         return $versions[0] ?? null;
+    }
+
+    protected function parseDocument(string $raw): array
+    {
+        $rawWithoutBom = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
+        $frontMatter = [];
+        $markdown = $rawWithoutBom;
+
+        if (str_starts_with($rawWithoutBom, "---\n") || str_starts_with($rawWithoutBom, "---\r\n")) {
+            if (preg_match('/^---\s*\r?\n(.*?)\r?\n---\s*\r?\n?/s', $rawWithoutBom, $matches)) {
+                $frontMatterRaw = $matches[1] ?? '';
+
+                try {
+                    $frontMatter = Yaml::parse($frontMatterRaw) ?? [];
+                } catch (ParseException $exception) {
+                    throw new RuntimeException('Unable to parse help content front matter: ' . $exception->getMessage(), 0, $exception);
+                }
+
+                $markdown = (string) substr($rawWithoutBom, strlen($matches[0] ?? ''));
+            }
+        }
+
+        $markdown = ltrim($markdown);
+
+        $structured = $this->normalizeStructuredData($frontMatter);
+
+        return [
+            'front_matter' => $frontMatter,
+            'markdown' => $markdown,
+            'steps' => $structured['steps'],
+            'media' => $structured['media'],
+            'meta' => $structured['meta'],
+        ];
+    }
+
+    protected function normalizeStructuredData(array $frontMatter): array
+    {
+        $steps = [];
+        $media = [];
+        $meta = [];
+
+        if (!empty($frontMatter['steps']) && is_array($frontMatter['steps'])) {
+            foreach ($frontMatter['steps'] as $index => $step) {
+                if (!is_array($step)) {
+                    continue;
+                }
+                $steps[] = $this->normalizeStep($step, $index);
+            }
+        }
+
+        $mediaSources = $frontMatter['media'] ?? ($frontMatter['resources']['media'] ?? []);
+        if ($mediaSources) {
+            $media = $this->normalizeMediaCollection($mediaSources);
+        }
+
+        if (!empty($frontMatter['meta']) && is_array($frontMatter['meta'])) {
+            $meta = $frontMatter['meta'];
+        }
+
+        if (isset($frontMatter['estimated_duration']) && !isset($meta['estimated_duration'])) {
+            $meta['estimated_duration'] = $frontMatter['estimated_duration'];
+        }
+
+        return [
+            'steps' => $steps,
+            'media' => $media,
+            'meta' => $meta,
+        ];
+    }
+
+    protected function normalizeStep(array $step, int $index): array
+    {
+        $id = $step['id'] ?? 'step-' . ($index + 1);
+        $content = isset($step['content']) ? (string) $step['content'] : '';
+
+        return [
+            'id' => $id,
+            'title' => $step['title'] ?? ('Step ' . ($index + 1)),
+            'summary' => $step['summary'] ?? null,
+            'duration' => $step['duration'] ?? null,
+            'html' => $content ? $this->toHtml($content) : '',
+            'raw' => $content,
+            'checklist' => array_values(array_filter($step['checklist'] ?? [])),
+            'media' => $this->normalizeMediaCollection($step['media'] ?? []),
+        ];
+    }
+
+    protected function normalizeMediaCollection($media): array
+    {
+        if (is_string($media)) {
+            $media = [['url' => $media]];
+        }
+
+        if (isset($media['url'])) {
+            $media = [$media];
+        }
+
+        if (!is_array($media)) {
+            return [];
+        }
+
+        return collect($media)
+            ->filter(fn ($item) => is_array($item) && !empty($item['url']))
+            ->map(function (array $item) {
+                $type = strtolower($item['type'] ?? $this->guessMediaType($item['url']));
+
+                return [
+                    'type' => $type,
+                    'url' => $item['url'],
+                    'label' => $item['label'] ?? ($item['caption'] ?? null),
+                    'caption' => $item['caption'] ?? null,
+                    'poster' => $item['poster'] ?? null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function guessMediaType(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'mp4', 'mov', 'webm' => 'video',
+            'gif' => 'gif',
+            'jpg', 'jpeg', 'png', 'svg', 'webp' => 'image',
+            'pdf' => 'pdf',
+            default => 'link',
+        };
+    }
+
+    protected function toHtml(string $markdown): string
+    {
+        return method_exists(Str::class, 'markdown')
+            ? Str::markdown($markdown)
+            : Str::of($markdown)->markdown();
     }
 }

@@ -49,6 +49,8 @@ Route::prefix('help-center')->name('help-center.')->controller(HelpContentContro
     Route::get('sections', 'index')->name('sections.index');
     Route::get('sections/{section}', 'show')->name('sections.show');
     Route::post('sections/{section}/track', 'track')->name('sections.track');
+    Route::post('sections/{section}/complete', 'complete')->name('sections.complete');
+    Route::post('sections/{section}/feedback', 'feedback')->name('sections.feedback');
     Route::post('sections/{section}/faq', 'faq')->name('sections.faq');
 });
 

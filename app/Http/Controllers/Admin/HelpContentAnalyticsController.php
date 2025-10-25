@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\HelpContentCompletion;
 use App\Models\HelpContentFaqLog;
 use App\Models\HelpContentView;
 use App\Services\HelpContentService;
@@ -28,6 +29,11 @@ class HelpContentAnalyticsController extends Controller
             ->first();
         $topLanguage = $topLanguageRow?->language;
 
+        $totalCompletions = HelpContentCompletion::where('status', 'completed')->count();
+        $completionRate = $totalViews > 0
+            ? round(($totalCompletions / $totalViews) * 100, 2)
+            : 0.0;
+
         $sectionStats = HelpContentView::select(
             'section_id',
             DB::raw('COUNT(*) as total_views'),
@@ -47,6 +53,32 @@ class HelpContentAnalyticsController extends Controller
                     'avg_duration' => round((float) $row->avg_duration, 2),
                     'last_viewed' => $row->last_viewed ? Carbon::parse($row->last_viewed) : null,
                     'languages' => $meta['available_languages'] ?? [],
+                ];
+            });
+
+        $completionStats = HelpContentCompletion::select(
+            'section_id',
+            DB::raw('COUNT(*) as total_attempts'),
+            DB::raw("SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as total_completed"),
+            DB::raw('AVG(CASE WHEN total_steps > 0 THEN completed_steps / total_steps ELSE NULL END) as avg_progress')
+        )
+            ->groupBy('section_id')
+            ->orderByDesc(DB::raw("SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)"))
+            ->get()
+            ->map(function ($row) use ($sectionLookup) {
+                $meta = $sectionLookup->get($row->section_id, []);
+                $attempts = (int) $row->total_attempts;
+                $completed = (int) $row->total_completed;
+                $completionPct = $attempts > 0 ? round(($completed / $attempts) * 100, 2) : 0.0;
+                $avgProgress = $row->avg_progress !== null ? round(((float) $row->avg_progress) * 100, 1) : null;
+
+                return [
+                    'section_id' => $row->section_id,
+                    'title' => $meta['title'] ?? $row->section_id,
+                    'attempts' => $attempts,
+                    'completed' => $completed,
+                    'completion_rate' => $completionPct,
+                    'avg_progress' => $avgProgress,
                 ];
             });
 
@@ -91,7 +123,10 @@ class HelpContentAnalyticsController extends Controller
             'averageRead',
             'uniqueViewers',
             'topLanguage',
+            'totalCompletions',
+            'completionRate',
             'sectionStats',
+            'completionStats',
             'faqStats',
             'trendSeries'
         ));
