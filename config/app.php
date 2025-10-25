@@ -198,6 +198,7 @@ return [
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
         App\Providers\HorizonServiceProvider::class,
+        App\Providers\EventStreamServiceProvider::class,
 
         // Image Intervention
         Intervention\Image\ImageServiceProvider::class,

@@ -17,3 +17,16 @@ Please Use This Commands On Your Terminal To Update Full System
 ## Branch synchronization
 
 All recent pull request changes have been merged into the `main` branch so it now mirrors the reviewed updates from the feature workflows. This ensures the default branch contains the latest application improvements without requiring additional manual steps.
+
+## Event streaming & analytics
+
+The application now emits structured JSON events for payments, currency exchanges and withdrawals. Configure the broker by setting the `EVENT_STREAM_*` variables in `.env`. By default the events are written to `storage/app/event-stream/` for local inspection.
+
+Run the processing worker (Laravel Octane alternative) with Node.js to hydrate the warehouse:
+
+```bash
+npm install
+npm run event-pipeline
+```
+
+Warehouse targets are configurable through `DATA_WAREHOUSE_DRIVER` (`filesystem`, `bigquery`, `clickhouse`). Dashboard templates for Grafana and Metabase are located under `docs/analytics/`.

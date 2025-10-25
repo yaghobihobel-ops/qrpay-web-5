@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\AdminNotifications\AuthNotifications;
+use App\Services\Recommendations\RouteRecommendationEngine;
 
 class DashboardController extends Controller
 {
@@ -35,6 +36,9 @@ class DashboardController extends Controller
         $data['withdraw'] = Transaction::auth()->moneyOut()->where('status',1)->sum('request_amount');
         $data['total_transaction'] = Transaction::auth()->where('status', 1)->count();
         $data['total_gift_cards'] = GiftCard::auth()->count();
+
+        $recommendationEngine = app(RouteRecommendationEngine::class);
+        $recommendation = $recommendationEngine->recommendFor(auth()->user());
 
         $start = strtotime(date('Y-m-01'));
         $end = strtotime(date('Y-m-31'));
@@ -124,7 +128,7 @@ class DashboardController extends Controller
         ];
 
          //
-        return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData'));
+        return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData','recommendation'));
     }
 
     public function logout(Request $request) {

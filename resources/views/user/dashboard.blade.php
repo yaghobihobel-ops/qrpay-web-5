@@ -117,6 +117,34 @@
                         </div>
                     </div>
                 </div>
+                @if($recommendation)
+                    <div class="col-xxl-6 col-xl-6 col-lg-12 col-md-12 col-sm-12 mb-20">
+                        <div class="dashbord-item">
+                            <div class="dashboard-content">
+                                <span class="sub-title">{{ __("Recommended route for you") }}</span>
+                                <h3 class="title">{{ __($recommendation->label()) }}
+                                    @if($recommendation->currency())
+                                        <span class="text--base">{{ $recommendation->currency() }}</span>
+                                    @endif
+                                </h3>
+                                <p class="text-muted small mb-0">{{ $recommendation->rationale() }}</p>
+                            </div>
+                            <div class="dashboard-icon">
+                                <span class="badge badge--success">{{ __("Confidence") }}: {{ number_format($recommendation->confidence()*100, 1) }}%</span>
+                            </div>
+                            @if(count($recommendation->alternatives()))
+                                <div class="mt-15 px-3 pb-3">
+                                    <small class="text-muted d-block mb-1">{{ __("Alternatives") }}</small>
+                                    <ul class="list list--base">
+                                        @foreach($recommendation->alternatives() as $alternative)
+                                            <li class="text-muted">{{ __($alternative['label']) }} ({{ number_format($alternative['score']*100, 1) }}%)</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
