@@ -16,8 +16,11 @@
 @section('content')
 <div class="body-wrapper">
     <div class="dashboard-area mt-10">
-        <div class="dashboard-header-wrapper">
-            <h3 class="title">{{__("Add Money")}}</h3>
+        <div class="dashboard-header-wrapper d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <h3 class="title mb-0">{{__("Add Money")}}</h3>
+                <x-help.launcher section="payments" :label="__('Payments help')" />
+            </div>
         </div>
     </div>
     <div class="row mb-30-none">

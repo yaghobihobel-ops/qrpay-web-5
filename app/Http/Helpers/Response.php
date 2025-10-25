@@ -1,68 +1,94 @@
 <?php
+
 namespace App\Http\Helpers;
 
-class Response {
+use App\Enums\ApiErrorCode;
+use Illuminate\Support\Arr;
+use Illuminate\Support\MessageBag;
 
-    public static function error($errors,$data = null, $status = 400) {
-        $responseData = [
-            'message'   => [
-                'error'    => $errors,
-            ],
-            'data'      => $data,
-            'type'          => "error",
-        ];
+class Response
+{
+    public static function error($errors, $data = null, $status = 400)
+    {
+        [$message, $messages] = self::normalizeMessages($errors, __('Request failed.'));
 
-        return response()->json($responseData,$status);
+        $details = ['errors' => $messages];
+
+        if (!is_null($data)) {
+            $details['data'] = $data;
+        }
+
+        return response()->error($message, ApiErrorCode::UNKNOWN, $details, $status);
     }
 
-    public static function success($success,$data = null,$status = 200) {
-        $responseData = [
-            'message'       => [
-                'success'   => $success,
-            ],
-            'data'          => $data,
-            'type'          => "success",
-        ];
+    public static function success($success, $data = null, $status = 200)
+    {
+        [$message, $messages] = self::normalizeMessages($success, __('Request succeeded.'));
 
-        return response()->json($responseData,$status);
+        $details = ['messages' => $messages];
+
+        if (!is_null($data)) {
+            $details['data'] = $data;
+        }
+
+        return response()->success($message, $details, $status);
     }
 
-    public static function warning($warning,$data = null,$status = 400) {
-        $responseData = [
-            'message'       => [
-                'error'     => $warning,
-            ],
-            'data'          => $data,
-            'type'          => "warning",
-        ];
+    public static function warning($warning, $data = null, $status = 400)
+    {
+        [$message, $messages] = self::normalizeMessages($warning, __('Request warning.'));
 
-        return response()->json($responseData,$status);
+        $details = ['warnings' => $messages];
 
+        if (!is_null($data)) {
+            $details['data'] = $data;
+        }
+
+        return response()->error($message, ApiErrorCode::UNKNOWN, $details, $status);
     }
 
-    public static function paymentApiError($errors,$data = [], $status = 400) {
-        $responseData = [
-            'message'   => [
-                'code'      => $status,
-                'error'     => $errors,
-            ],
-            'data'          => $data,
-            'type'          => "error",
-        ];
+    public static function paymentApiError($errors, $data = [], $status = 400)
+    {
+        [$message, $messages] = self::normalizeMessages($errors, __('Request failed.'));
 
-        return response()->json($responseData,$status);
+        $details = ['errors' => $messages];
+
+        if (!empty($data)) {
+            $details['data'] = $data;
+        }
+
+        return response()->error($message, ApiErrorCode::UNKNOWN, $details, $status);
     }
 
-    public static function paymentApiSuccess($success,$data = null,$status = 200) {
-        $responseData = [
-            'message'       => [
-                'code'      => $status,
-                'success'   => $success,
-            ],
-            'data'          => $data,
-            'type'          => "success",
-        ];
+    public static function paymentApiSuccess($success, $data = null, $status = 200)
+    {
+        [$message, $messages] = self::normalizeMessages($success, __('Request succeeded.'));
 
-        return response()->json($responseData,$status);
+        $details = ['messages' => $messages];
+
+        if (!is_null($data)) {
+            $details['data'] = $data;
+        }
+
+        return response()->success($message, $details, $status);
+    }
+
+    protected static function normalizeMessages($input, string $default): array
+    {
+        if ($input instanceof MessageBag) {
+            $messages = $input->all();
+        } elseif (is_array($input)) {
+            $messages = Arr::flatten($input);
+        } elseif (is_string($input)) {
+            $messages = [$input];
+        } elseif (is_null($input)) {
+            $messages = [];
+        } else {
+            $messages = [(string) $input];
+        }
+
+        $message = $messages[0] ?? $default;
+
+        return [$message, $messages];
     }
 }

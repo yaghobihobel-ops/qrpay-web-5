@@ -7,6 +7,7 @@ use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvi
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 class RouteServiceProvider extends ServiceProvider
 {
@@ -83,6 +84,16 @@ class RouteServiceProvider extends ServiceProvider
     {
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('user-login', function (Request $request) {
+            $maxAttempts = (int) config('auth.rate_limits.user_login.max_attempts', 5);
+            $decaySeconds = (int) config('auth.rate_limits.user_login.decay_seconds', 60);
+            $minutes = max(1, (int) ceil($decaySeconds / 60));
+
+            return Limit::perMinutes($minutes, $maxAttempts)->by(
+                Str::lower($request->input('email', '')) . '|' . $request->ip()
+            );
         });
     }
 

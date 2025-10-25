@@ -2,11 +2,13 @@
 namespace App\Http\Helpers;
 
 use App\Constants\PaymentGatewayConst;
+use App\Contracts\RegionalPaymentProviderInterface;
 use App\Models\Admin\Currency;
 use App\Models\Admin\PaymentGateway as PaymentGatewayModel;
 use App\Models\Admin\PaymentGatewayCurrency;
 use App\Models\TemporaryData;
 use App\Models\Transaction;
+use App\Services\Payments\Regional\RegionalPaymentManager;
 use App\Traits\PaymentGateway\Paypal;
 use App\Traits\PaymentGateway\Stripe;
 use App\Traits\PaymentGateway\Manual;
@@ -38,14 +40,41 @@ class PaymentGateway {
     protected $predefined_guard;
     protected $predefined_user;
 
+    protected ?RegionalPaymentManager $regionalManager = null;
 
-    public function __construct(array $request_data)
+
+    public function __construct(array $request_data, ?RegionalPaymentManager $regionalManager = null)
     {
         $this->request_data = $request_data;
+        $this->regionalManager = $regionalManager;
     }
 
     public static function init(array $data) {
         return new PaymentGateway($data);
+    }
+
+    protected function getRegionalManager(): ?RegionalPaymentManager
+    {
+        if ($this->regionalManager) {
+            return $this->regionalManager;
+        }
+
+        if (function_exists('app') && app()->bound(RegionalPaymentManager::class)) {
+            $this->regionalManager = app(RegionalPaymentManager::class);
+        }
+
+        return $this->regionalManager;
+    }
+
+    protected function resolveRegionalProvider(?string $currencyCode): ?RegionalPaymentProviderInterface
+    {
+        $manager = $this->getRegionalManager();
+
+        if (!$currencyCode || !$manager) {
+            return null;
+        }
+
+        return $manager->resolveByCurrency($currencyCode);
     }
 
     public function gateway() {
@@ -64,6 +93,20 @@ class PaymentGateway {
         if(!$user_wallet) {
             throw ValidationException::withMessages([
                 $this->currency_input_name = __("User wallet not found!"),
+            ]);
+        }
+
+        $regionalProvider = $this->resolveRegionalProvider($gateway_currency->currency_code ?? null);
+        if ($regionalProvider) {
+            $this->output['regional_provider'] = get_class($regionalProvider);
+            $this->output['regional_checkout'] = $regionalProvider->prepareCheckout([
+                'wallet' => $user_wallet,
+                'amount' => (float) ($request_data[$this->amount_input] ?? 0),
+                'currency' => $gateway_currency->currency_code ?? null,
+                'meta' => [
+                    'gateway_alias' => $gateway_currency->gateway->alias ?? null,
+                    'context' => request()->expectsJson() ? 'api' : 'panel',
+                ],
             ]);
         }
 
@@ -86,6 +129,44 @@ class PaymentGateway {
         // limit validation
         $this->limitValidation($this->output);
         return $this;
+    }
+
+    public function executeRegionalPayment(string $currencyCode, array $payload = []): array
+    {
+        $provider = $this->resolveRegionalProvider($currencyCode);
+
+        if (!$provider) {
+            throw new Exception(__('Regional payment provider not available for the selected currency.'));
+        }
+
+        if (!isset($payload['wallet']) && isset($this->output['wallet'])) {
+            $payload['wallet'] = $this->output['wallet'];
+        }
+
+        if (!isset($payload['amount']) && isset($this->output['amount']) && is_object($this->output['amount']) && isset($this->output['amount']->requested_amount)) {
+            $payload['amount'] = (float) $this->output['amount']->requested_amount;
+        }
+
+        return $provider->executePayment($payload);
+    }
+
+    public function refundRegionalPayment(string $currencyCode, array $payload = []): array
+    {
+        $provider = $this->resolveRegionalProvider($currencyCode);
+
+        if (!$provider) {
+            throw new Exception(__('Regional payment provider not available for the selected currency.'));
+        }
+
+        if (!isset($payload['wallet']) && isset($this->output['wallet'])) {
+            $payload['wallet'] = $this->output['wallet'];
+        }
+
+        if (!isset($payload['amount']) && isset($this->output['amount']) && is_object($this->output['amount']) && isset($this->output['amount']->requested_amount)) {
+            $payload['amount'] = (float) $this->output['amount']->requested_amount;
+        }
+
+        return $provider->refundPayment($payload);
     }
 
     public function validator($data) {

@@ -30,6 +30,12 @@
                     'icon'      => "menu-icon las la-rocket",
                 ])
 
+                @include('admin.components.side-nav.link',[
+                    'route'     => 'admin.documentation.index',
+                    'title'     => 'Development Guide',
+                    'icon'      => 'menu-icon las la-book',
+                ])
+
                 {{-- Section Default --}}
                 @include('admin.components.side-nav.link-group',[
                     'group_title'       => __("DEFAULT"),
@@ -63,6 +69,11 @@
                             'title'     => __("Gift Card Api"),
                             'route'     => "admin.gift.card.index",
                             'icon'      => "menu-icon las la-gift",
+                        ],
+                        [
+                            'title'     => __("Help Center Analytics"),
+                            'route'     => "admin.help-center.analytics",
+                            'icon'      => "menu-icon las la-chalkboard-teacher",
                         ],
                     ]
                 ])
@@ -548,6 +559,14 @@
                     'title'     => "System Maintenance",
                     'icon'      => "menu-icon las la-tools",
                 ])
+
+                @if (class_exists('\\Laravel\\Horizon\\Horizon'))
+                    @include('admin.components.side-nav.link',[
+                        'route'     => 'admin.queues.horizon',
+                        'title'     => __("Queue Monitor"),
+                        'icon'      => "menu-icon las la-tachometer-alt",
+                    ])
+                @endif
 
                 {{-- Verification Center --}}
                 @include('admin.components.side-nav.link-group',[

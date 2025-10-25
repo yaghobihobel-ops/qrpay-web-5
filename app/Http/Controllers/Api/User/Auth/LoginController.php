@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use App\Traits\User\LoggedInUsers;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -41,13 +43,19 @@ class LoginController extends Controller
             return ApiHelpers::validation($error);
         }
 
+        if ($this->isRateLimited($request)) {
+            return $this->sendLockoutResponse($request);
+        }
+
         $user = User::where('email',$request->email)->first();
         if(!$user){
+            $this->incrementLoginAttempts($request);
             $error = ['error'=>[__("User doesn't exists.")]];
             return ApiHelpers::validation($error);
         }
         if (Hash::check($request->password, $user->password)) {
             if($user->status == 0){
+                $this->incrementLoginAttempts($request);
                 $error = ['error'=>[__('Account Has been Suspended')]];
                 return ApiHelpers::validation($error);
             }
@@ -59,15 +67,57 @@ class LoginController extends Controller
             $this->createQr($user);
             $token = $user->createToken('user_token')->accessToken;
 
+            $this->clearLoginAttempts($request);
+
             $data = ['token' => $token, 'user' => $user, ];
             $message =  ['success'=>[__('Login Successful')]];
             return ApiHelpers::success($data,$message);
 
         } else {
+            $this->incrementLoginAttempts($request);
             $error = ['error'=>[__('Incorrect Password')]];
             return ApiHelpers::error($error);
         }
 
+    }
+
+    protected function isRateLimited(Request $request): bool
+    {
+        return RateLimiter::tooManyAttempts($this->throttleKey($request), $this->maxAttempts());
+    }
+
+    protected function sendLockoutResponse(Request $request)
+    {
+        $seconds = RateLimiter::availableIn($this->throttleKey($request));
+        $error = ['error' => [__('Too many login attempts. Please try again in :seconds seconds.', ['seconds' => $seconds])]];
+        $data = ['retry_after_seconds' => $seconds];
+
+        return ApiHelpers::error($error, $data);
+    }
+
+    protected function incrementLoginAttempts(Request $request): void
+    {
+        RateLimiter::hit($this->throttleKey($request), $this->decaySeconds());
+    }
+
+    protected function clearLoginAttempts(Request $request): void
+    {
+        RateLimiter::clear($this->throttleKey($request));
+    }
+
+    protected function throttleKey(Request $request): string
+    {
+        return Str::lower($request->input('email', '')) . '|' . $request->ip();
+    }
+
+    protected function maxAttempts(): int
+    {
+        return (int) config('auth.rate_limits.user_login.max_attempts', 5);
+    }
+
+    protected function decaySeconds(): int
+    {
+        return (int) config('auth.rate_limits.user_login.decay_seconds', 60);
     }
 
     public function register(Request $request){
