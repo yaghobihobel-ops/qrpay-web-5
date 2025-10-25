@@ -11,7 +11,7 @@ class HorizonServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (!class_exists(\Laravel\Horizon\Horizon::class)) {
+        if (!class_exists('Laravel\\Horizon\\Horizon')) {
             return;
         }
 

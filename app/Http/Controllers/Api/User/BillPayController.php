@@ -469,10 +469,10 @@ class BillPayController extends Controller
               //admin notification
               $this->adminNotificationAutomatic($trx_id,$charges,$biller,$request_data,$user,$payBill);
              // Dispatch the job to process the payment status
-            SyncBillPaymentStatus::dispatch($transaction)
+            SyncBillPaymentStatus::dispatch($transaction->id)
                 ->onQueue('bill-payments')
                 ->delay(now()->addSeconds(scheduleBillPayApiCall($payBill)));
-            // SyncBillPaymentStatus::dispatch($transaction)->delay(now()->addSeconds(10));
+            // SyncBillPaymentStatus::dispatch($transaction->id)->delay(now()->addSeconds(10));
 
             $message =  ['success'=>[__('Bill Pay Request Successful')]];
             return Helpers::onlysuccess($message);
