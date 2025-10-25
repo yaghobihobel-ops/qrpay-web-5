@@ -257,7 +257,7 @@ Route::prefix('user')->group(function(){
             });
 
             //Withdraw Money
-            Route::controller(MoneyOutController::class)->prefix('withdraw')->group(function(){
+            Route::controller(MoneyOutController::class)->prefix('withdraw')->middleware('domain.rate_limit:withdrawal,api')->group(function(){
                 Route::get('info','moneyOutInfo');
                 Route::post('insert','moneyOutInsert')->middleware('api.kyc');
                 Route::post('manual/confirmed','moneyOutConfirmed')->name('api.withdraw.manual.confirmed')->middleware('api.kyc');
@@ -268,19 +268,19 @@ Route::prefix('user')->group(function(){
                Route::get('get/flutterwave/bank/branches','getFlutterWaveBankBranches');
             });
              //Make Payment
-             Route::controller(MakePaymentController::class)->prefix('make-payment')->group(function(){
+            Route::controller(MakePaymentController::class)->prefix('make-payment')->middleware('domain.rate_limit:payment,make-payment')->group(function(){
                 Route::get('info','makePaymentInfo');
                 Route::post('check/merchant','checkMerchant');
                 Route::post('merchants/scan','qrScan');
                 Route::post('confirmed','confirmedPayment')->middleware('api.kyc');
             });
              //Bill Pay
-            Route::controller(BillPayController::class)->prefix('bill-pay')->group(function(){
+            Route::controller(BillPayController::class)->prefix('bill-pay')->middleware('domain.rate_limit:payment,bill-pay')->group(function(){
                 Route::get('info','billPayInfo');
                 Route::post('confirmed','billPayConfirmed')->middleware('api.kyc');
             });
              //mobile top up
-            Route::controller(MobileTopupController::class)->prefix('mobile-topup')->group(function(){
+            Route::controller(MobileTopupController::class)->prefix('mobile-topup')->middleware('domain.rate_limit:topup,mobile-topup')->group(function(){
                 Route::get('info','topUpInfo');
                 Route::post('confirmed','topUpConfirmed')->middleware('api.kyc');
                 //automatic method
@@ -290,7 +290,7 @@ Route::prefix('user')->group(function(){
                 });
             });
             //gift card
-            Route::controller(GiftCardController::class)->prefix('gift-card')->group(function(){
+            Route::controller(GiftCardController::class)->prefix('gift-card')->middleware('domain.rate_limit:card,gift-card')->group(function(){
                 Route::get('/', 'index');
                 Route::get('all', 'allGiftCard');
                 Route::get('search/', 'searchGiftCard');

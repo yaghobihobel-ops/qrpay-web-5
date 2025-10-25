@@ -4,9 +4,10 @@ namespace App\Providers;
 
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Domain\ProviderOverrideRepository;
+use App\Services\Monitoring\DomainInstrumentation;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
@@ -23,16 +24,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->app->singleton(InternalWalletService::class, fn () => new InternalWalletService());
-
-        $this->app->singleton(RegionalPaymentManager::class, function ($app) {
-            return new RegionalPaymentManager(
-                $app->make(InternalWalletService::class),
-                config('payments.regional_providers', [])
-            );
-        });
-
-        $this->app->alias(RegionalPaymentManager::class, 'regional.payment.manager');
+        //
     }
 
     /**
