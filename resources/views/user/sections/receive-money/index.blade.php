@@ -55,6 +55,14 @@
 
                                     <button type="button" class="btn--base w-100" data-bs-toggle="modal" data-bs-target="#exampleModal">{{ __("Share") }} <i class="fas fa-share-square ms-1"></i></button>
                                 </div>
+                                <div class="col-xl-12 mt-3">
+                                    @include('user.components.scenario-explorer', [
+                                        'scenario' => 'qr',
+                                        'heading' => __('messaging.labels.qr_flow_heading'),
+                                        'defaultLocale' => app()->getLocale(),
+                                        'dusk' => 'qr-scenario',
+                                    ])
+                                </div>
                             </form>
                         </div>
                     </div>

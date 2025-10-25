@@ -2,8 +2,14 @@
 
 namespace App\Http\Helpers;
 
+use App\Models\Admin\Admin;
+use App\Models\Agent;
+use App\Models\Merchants\Merchant;
+use App\Models\User;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Notifications\LocalizedMessagingService;
 use Exception;
+use Illuminate\Support\Arr;
 use Pusher\PushNotifications\PushNotifications;
 
 
@@ -22,8 +28,12 @@ class PushNotificationHelper {
     public $n_title;
     public $n_desc;
 
-    public function __construct(array $data = [])
+    protected LocalizedMessagingService $messagingService;
+
+    public function __construct(array $data = [], ?LocalizedMessagingService $messagingService = null)
     {
+        $this->messagingService = $messagingService ?? app(LocalizedMessagingService::class);
+
         $this->config();
 
         if(isset($data['users'])){
@@ -62,12 +72,15 @@ class PushNotificationHelper {
 
             $fav = get_fav();
 
-            $this->data                 = $data;
-            $this->users                = $users;
-            $this->n_icon               = $fav;
-            $this->user_type            = $data['user_type'];
-            $this->n_title              = $data['title'];
-            $this->n_desc               = $data['desc'];
+            $this->users     = $users;
+            $this->n_icon    = $fav;
+            $this->user_type = $data['user_type'];
+
+            $localized = $this->localizeMessage($data);
+
+            $this->data     = $localized;
+            $this->n_title  = $localized['title'];
+            $this->n_desc   = $localized['desc'];
 
             return $this;
         }catch(Exception $e){}
@@ -78,12 +91,15 @@ class PushNotificationHelper {
 
         $fav = get_fav();
 
-        $this->data                 = $data;
-        $this->users                = $users;
-        $this->n_icon               = $fav;
-        $this->user_type            = $data['user_type'];
-        $this->n_title              = $data['title'];
-        $this->n_desc               = $data['desc'];
+        $this->users     = $users;
+        $this->n_icon    = $fav;
+        $this->user_type = $data['user_type'];
+
+        $localized = $this->localizeMessage($data);
+
+        $this->data     = $localized;
+        $this->n_title  = $localized['title'];
+        $this->n_desc   = $localized['desc'];
 
         return $this;
        }catch(Exception $e){}
@@ -94,12 +110,15 @@ class PushNotificationHelper {
 
         $fav = get_fav();
 
-        $this->data                 = $data;
-        $this->users                = $users;
-        $this->n_icon               = $fav;
-        $this->user_type            = $data['user_type'];
-        $this->n_title              = $data['title'];
-        $this->n_desc               = $data['desc'];
+        $this->users     = $users;
+        $this->n_icon    = $fav;
+        $this->user_type = $data['user_type'];
+
+        $localized = $this->localizeMessage($data);
+
+        $this->data     = $localized;
+        $this->n_title  = $localized['title'];
+        $this->n_desc   = $localized['desc'];
 
         return $this;
        }catch(Exception $e){}
@@ -196,6 +215,52 @@ class PushNotificationHelper {
         $full_url_host = preg_replace("/[^A-Za-z0-9]/","-",$full_url_host);
 
         return $full_url_host . "-" . $user_type . "-" . $user_id;
+    }
+
+    protected function localizeMessage(array $data): array
+    {
+        $payload = array_merge([
+            'title' => Arr::get($data, 'title', $this->n_title ?? ''),
+            'desc' => Arr::get($data, 'desc', $this->n_desc ?? ''),
+            'user_type' => $data['user_type'] ?? $this->user_type,
+        ], $data);
+
+        $context = $this->resolveContext($payload);
+
+        return $this->messagingService->transform('push', $payload, $context);
+    }
+
+    protected function resolveContext(array $data): array
+    {
+        $context = [
+            'locale' => $data['locale'] ?? null,
+            'country' => $data['country'] ?? null,
+        ];
+
+        $userType = $data['user_type'] ?? $this->user_type ?? null;
+        $userId = $this->users[0] ?? null;
+
+        $model = $this->resolveModel($userType);
+
+        if ($model && $userId) {
+            $user = $model::find($userId);
+            if ($user) {
+                $context = array_merge($context, $this->messagingService->resolveUserContext($user, $context));
+            }
+        }
+
+        return $context;
+    }
+
+    protected function resolveModel(?string $userType): ?string
+    {
+        return match ($userType) {
+            'user' => User::class,
+            'agent' => Agent::class,
+            'merchant' => Merchant::class,
+            'admin' => Admin::class,
+            default => null,
+        };
     }
 
     public function unsubscribe()

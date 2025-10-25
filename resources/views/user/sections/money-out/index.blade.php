@@ -32,6 +32,17 @@
                         <h5 class="title">{{ __($page_title) }}</h5>
                     </div>
                     <div class="dash-payment-body">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                @include('user.components.localized-wizard-hint', [
+                                    'context' => 'money-out',
+                                    'heading' => __('messaging.labels.localized_guidance'),
+                                    'description' => __('messaging.labels.instructions_heading'),
+                                    'defaultLocale' => app()->getLocale(),
+                                    'dusk' => 'money-out-localized-wizard',
+                                ])
+                            </div>
+                        </div>
                         <form class="card-form" action="{{ setRoute('user.money.out.insert') }}" method="POST">
                             @csrf
                             <div class="row">
@@ -172,6 +183,14 @@
                                     <span class="text--warning last total-pay">--</span>
                                 </div>
                             </div>
+                        </div>
+                        <div class="mt-4">
+                            @include('user.components.scenario-explorer', [
+                                'scenario' => 'bankAuth',
+                                'heading' => __('messaging.labels.bank_flow_heading'),
+                                'defaultLocale' => app()->getLocale(),
+                                'dusk' => 'bank-auth-scenario',
+                            ])
                         </div>
                     </div>
                 </div>
