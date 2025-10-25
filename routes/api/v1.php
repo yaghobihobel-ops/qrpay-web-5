@@ -22,6 +22,9 @@ use App\Http\Controllers\Api\User\StripeVirtualController;
 use App\Http\Controllers\Api\User\SudoVirtualCardController;
 use App\Http\Controllers\Api\User\TransactionController;
 use App\Http\Controllers\Api\User\UserController;
+use App\Http\Controllers\Api\KpiController;
+use App\Http\Controllers\Api\PaymentRouteRecommendationController;
+use App\Http\Controllers\Api\RiskDecisionController;
 use App\Http\Controllers\Api\User\VirtualCardController;
 use App\Http\Controllers\Api\User\RequestMoneyController;
 use App\Http\Controllers\Api\User\StrowalletVirtualCardController;
@@ -70,6 +73,10 @@ Route::controller(AppSettingsController::class)->prefix("app-settings")->group(f
     Route::get('/','appSettings');
     Route::get('languages','languages')->withoutMiddleware(['system.maintenance.api']);
 });
+
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->get('analytics/kpis', KpiController::class);
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->post('payments/routes/recommend', PaymentRouteRecommendationController::class);
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->post('risk/decision', RiskDecisionController::class);
 Route::controller(AddMoneyController::class)->prefix("add-money")->group(function(){
     Route::get('success/response/paypal/{gateway}','success')->name('api.payment.success');
     Route::get("cancel/response/paypal/{gateway}",'cancel')->name('api.payment.cancel');
