@@ -4,10 +4,9 @@ namespace App\Providers;
 
 use App\Constants\ExtensionConst;
 use App\Providers\Admin\ExtensionProvider;
-use App\Services\Payments\InternalWalletService;
-use App\Services\Payments\Regional\RegionalPaymentManager;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
@@ -45,12 +44,49 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
         Schema::defaultStringLength(191);
-        if(config('security.enforce_https') && $this->app->environment('production') && !app()->runningInConsole()) {
+        if(config('app.force_https') && $this->app->environment('production') && !app()->runningInConsole()) {
             URL::forceScheme('https');
         }
 
         //laravel extend validation rules
         $this->extendValidationRule();
+    }
+
+    protected function registerResponseMacros(): void
+    {
+        ResponseFacade::macro('success', function (string $message, mixed $details = null, int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('error', function (string $message, ApiErrorCode|int $code = ApiErrorCode::UNKNOWN, mixed $details = null, int $status = 400) {
+            $code = $code instanceof ApiErrorCode ? $code->value : $code;
+
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('paginated', function (LengthAwarePaginator $paginator, string $message = 'Fetched successfully.', int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => [
+                    'data' => $paginator->items(),
+                    'meta' => [
+                        'current_page' => $paginator->currentPage(),
+                        'per_page' => $paginator->perPage(),
+                        'total' => $paginator->total(),
+                        'last_page' => $paginator->lastPage(),
+                    ],
+                ],
+            ], $status);
+        });
     }
 
     /**
