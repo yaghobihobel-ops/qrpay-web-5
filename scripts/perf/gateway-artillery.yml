@@ -1,0 +1,35 @@
+config:
+  target: "http://localhost:8000"
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      name: "Singapore edge warmup"
+      defaults:
+        headers:
+          X-User-Country: "SG"
+    - duration: 60
+      arrivalRate: 5
+      name: "Istanbul edge warmup"
+      defaults:
+        headers:
+          X-User-Country: "TR"
+    - duration: 60
+      arrivalRate: 5
+      name: "Moscow edge warmup"
+      defaults:
+        headers:
+          X-User-Country: "RU"
+
+scenarios:
+  - name: "Gateway geo-routing baseline"
+    flow:
+      - get:
+          url: "/api/v1/get/basic/data"
+      - get:
+          url: "/api/v1/app-settings"
+      - get:
+          url: "/api/v1/app-settings/languages"
+      - get:
+          url: "/api/v1/version-info"
+        expect:
+          - statusCode: 200

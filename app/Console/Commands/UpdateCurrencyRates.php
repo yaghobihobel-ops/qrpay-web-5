@@ -8,6 +8,7 @@ use App\Models\Admin\Currency;
 use App\Models\Admin\ExchangeRate;
 use App\Models\Admin\PaymentGatewayCurrency;
 use App\Models\LiveExchangeRateApiSetting;
+use App\Services\Edge\CacheInvalidationCoordinator;
 use Illuminate\Console\Command;
 use Exception;
 
@@ -16,7 +17,7 @@ class UpdateCurrencyRates extends Command
     protected $signature = 'currency:update';
     protected $description = 'Update currency rates using CurrencyLayer API';
 
-    public function __construct()
+    public function __construct(private CacheInvalidationCoordinator $cacheInvalidation)
     {
         parent::__construct();
     }
@@ -57,6 +58,8 @@ class UpdateCurrencyRates extends Command
                     }
                 }
             }
+
+            $this->cacheInvalidation->broadcastRates('currency-layer-live', ['trigger' => 'scheduled-sync']);
 
             info('Currency Rate Updated Successfully by Currency Layer.');
 

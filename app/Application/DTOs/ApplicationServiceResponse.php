@@ -10,7 +10,8 @@ class ApplicationServiceResponse
     public function __construct(
         public readonly string $status,
         public readonly array $messages = [],
-        public readonly mixed $data = null
+        public readonly mixed $data = null,
+        protected $responseCustomizer = null
     ) {
     }
 
@@ -29,12 +30,29 @@ class ApplicationServiceResponse
         return new self('validation', $messages);
     }
 
+    public function withResponse(callable $callback): self
+    {
+        $this->responseCustomizer = $callback;
+
+        return $this;
+    }
+
     public function toResponse(): JsonResponse
     {
-        return match ($this->status) {
+        $response = match ($this->status) {
             'success' => Helpers::success($this->data, $this->messages),
             'validation' => Helpers::validation($this->messages),
             default => Helpers::error($this->messages),
         };
+
+        if ($this->responseCustomizer) {
+            $customized = ($this->responseCustomizer)($response);
+
+            if ($customized instanceof JsonResponse) {
+                $response = $customized;
+            }
+        }
+
+        return $response;
     }
 }

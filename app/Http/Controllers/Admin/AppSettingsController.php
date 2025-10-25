@@ -4,14 +4,17 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Admin\AppSettings;
+use App\Services\Edge\CacheInvalidationCoordinator;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 class AppSettingsController extends Controller
 {
+    public function __construct(private CacheInvalidationCoordinator $cacheInvalidation)
+    {
+    }
 
     /**
      * Display The App Splash Screen Settings Page
@@ -62,7 +65,8 @@ class AppSettingsController extends Controller
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
 
-        Cache::forget('api.app_settings');
+        $this->cacheInvalidation->broadcastSettings('app', ['trigger' => 'splash_screen_update']);
+        $this->cacheInvalidation->broadcastSettings('basic-data', ['trigger' => 'splash_screen_update']);
 
         return back()->with(['success' => [__("Splash screen updated successfully!")]]);
 
@@ -98,7 +102,8 @@ class AppSettingsController extends Controller
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
 
-        Cache::forget('api.app_settings');
+        $this->cacheInvalidation->broadcastSettings('app', ['trigger' => 'url_update']);
+        $this->cacheInvalidation->broadcastSettings('basic-data', ['trigger' => 'url_update']);
 
         return back()->with(['success' => [__("URL settings updated successfully!")]]);
     }

@@ -20,7 +20,13 @@ class ApiVersionResolver
 
         $this->rewritePathIfNecessary($request, $version);
 
-        return $next($request);
+        $response = $next($request);
+
+        if (method_exists($this->requestRouter, 'applyRegionHeaders')) {
+            $response = $this->requestRouter->applyRegionHeaders($response, $request);
+        }
+
+        return $response;
     }
 
     protected function rewritePathIfNecessary(Request $request, string $version): void

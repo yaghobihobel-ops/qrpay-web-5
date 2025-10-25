@@ -6,6 +6,7 @@ use App\Constants\NotificationConst;
 use App\Constants\PaymentGatewayConst;
 use App\Http\Controllers\Controller;
 use App\Http\Helpers\Api\Helpers;
+use App\Services\Edge\EdgeCacheRepository;
 use App\Http\Helpers\NotificationHelper;
 use App\Http\Helpers\PushNotificationHelper;
 use App\Models\Admin\BasicSettings;
@@ -591,7 +592,9 @@ class WithdrawController extends Controller
             'bank_info' => array_values($allBanks)??[]
         ];
         $message =  ['success'=>[__("All Bank Fetch Successfully")]];
-        return Helpers::success($data, $message);
+        $response = Helpers::success($data, $message);
+
+        return app(EdgeCacheRepository::class)->withEdgeHeaders($response, EdgeCacheRepository::SCOPE_BANKS, strtoupper($country->iso2 ?? 'GLOBAL'));
 
     }
     public function checkBankAccount(){

@@ -14,7 +14,7 @@ class RequestRouter
      */
     protected array $supportedVersions = ['v1', 'v2'];
 
-    public function __construct(private Application $app)
+    public function __construct(private Application $app, private GeoRegionRouter $geoRegionRouter)
     {
     }
 
@@ -24,6 +24,8 @@ class RequestRouter
     public function prepare(Request $request): string
     {
         $this->normalizeInputs($request);
+
+        $this->resolveEdgeRegion($request);
 
         $version = $this->resolveVersion($request);
 
@@ -52,7 +54,9 @@ class RequestRouter
         $version = $request->attributes->get('resolved_api_version') ?? $this->prepare($request);
 
         if ($version !== 'v2') {
-            return $this->app->make('router')->dispatch($request);
+            $response = $this->app->make('router')->dispatch($request);
+
+            return $this->applyRegionHeaders($response, $request);
         }
 
         $forward = Request::create(
@@ -71,10 +75,13 @@ class RequestRouter
 
         $forward->headers->set('Accept-Version', 'v1');
         $forward->attributes->set('resolved_api_version', 'v1');
+        $forward->attributes->set('resolved_edge_region', $request->attributes->get('resolved_edge_region'));
         $forward->setUserResolver($request->getUserResolver());
         $forward->setRouteResolver($request->getRouteResolver());
 
-        return $this->app->make('router')->dispatch($forward);
+        $response = $this->app->make('router')->dispatch($forward);
+
+        return $this->applyRegionHeaders($response, $request);
     }
 
     /**
@@ -109,5 +116,40 @@ class RequestRouter
         }
 
         return $version ?: $this->supportedVersions[0];
+    }
+
+    protected function resolveEdgeRegion(Request $request): void
+    {
+        if ($request->attributes->has('resolved_edge_region')) {
+            return;
+        }
+
+        $region = $this->geoRegionRouter->resolve($request);
+        $request->attributes->set('resolved_edge_region', $region);
+    }
+
+    public function applyRegionHeaders(Response $response, Request $request): Response
+    {
+        $region = $request->attributes->get('resolved_edge_region');
+
+        if (is_array($region)) {
+            if (isset($region['code'])) {
+                $response->headers->set('X-Edge-Region', (string) $region['code']);
+            }
+
+            if (isset($region['name'])) {
+                $response->headers->set('X-Edge-Region-Name', (string) $region['name']);
+            }
+
+            if (isset($region['endpoint'])) {
+                $response->headers->set('X-Edge-Region-Endpoint', (string) $region['endpoint']);
+            }
+
+            if (isset($region['source'])) {
+                $response->headers->set('X-Edge-Region-Source', (string) $region['source']);
+            }
+        }
+
+        return $response;
     }
 }

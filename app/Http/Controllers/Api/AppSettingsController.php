@@ -8,17 +8,18 @@ use App\Http\Helpers\Api\Helpers;
 use App\Models\Admin\AppOnboardScreens;
 use App\Models\Admin\AppSettings;
 use App\Models\Admin\BasicSettings;
+use App\Services\Edge\EdgeCacheRepository;
 use Exception;
-use Illuminate\Support\Facades\Cache;
 
 class AppSettingsController extends Controller
 {
+    public function __construct(private EdgeCacheRepository $edgeCache)
+    {
+    }
+
     public function appSettings()
     {
-        $cacheKey = 'api.app_settings';
-        $ttl = now()->addMinutes(10);
-
-        $data = Cache::remember($cacheKey, $ttl, function () {
+        $data = $this->edgeCache->rememberSettings('app', function () {
             $appSettings = AppSettings::first();
 
             $appUrl = [
@@ -171,7 +172,9 @@ class AppSettingsController extends Controller
         });
 
         $message =  ['success'=>[__("Data Fetch Successful")]];
-        return Helpers::success($data,$message);
+        $response = Helpers::success($data,$message);
+
+        return $this->edgeCache->withEdgeHeaders($response, EdgeCacheRepository::SCOPE_SETTINGS, 'app');
     }
 
     public function languages()
@@ -186,6 +189,8 @@ class AppSettingsController extends Controller
             'languages' => $api_languages,
         ];
         $message =  ['success'=>[__('Language Data Fetch Successfully!')]];
-        return Helpers::success($data,$message);
+        $response = Helpers::success($data,$message);
+
+        return $this->edgeCache->withEdgeHeaders($response, EdgeCacheRepository::SCOPE_SETTINGS, 'languages');
     }
 }

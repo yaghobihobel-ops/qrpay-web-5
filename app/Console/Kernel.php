@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\DispatchAnalyticsEvent::class,
+        \App\Console\Commands\EdgeCacheSubscriberCommand::class,
     ];
 
     /**
