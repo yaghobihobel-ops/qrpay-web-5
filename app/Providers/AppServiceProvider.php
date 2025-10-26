@@ -6,8 +6,10 @@ use App\Constants\ExtensionConst;
 use App\Models\Transaction;
 use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
-use App\Services\Exchange\CurrencyLayerExchangeRateProvider;
-use App\Services\Exchange\ExchangeRateProviderInterface;
+use App\Services\VirtualCard\KycProviderInterface;
+use App\Services\VirtualCard\StrowalletVirtualCardService;
+use App\Services\VirtualCard\VirtualCardProviderInterface;
+use GuzzleHttp\Client;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -23,10 +25,15 @@ class AppServiceProvider extends ServiceProvider
      * Register any application services.
      *
      * @return void
-     */
+    */
     public function register()
     {
-        $this->app->bind(ExchangeRateProviderInterface::class, CurrencyLayerExchangeRateProvider::class);
+        $this->app->singleton(StrowalletVirtualCardService::class, function () {
+            return new StrowalletVirtualCardService(new Client());
+        });
+
+        $this->app->bind(VirtualCardProviderInterface::class, StrowalletVirtualCardService::class);
+        $this->app->bind(KycProviderInterface::class, StrowalletVirtualCardService::class);
     }
 
     /**
