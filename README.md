@@ -1,4 +1,3 @@
-<<<<<<<< Update Guide >>>>>>>>>>>
 
 Immediate Older Version: 4.9.0
 Current Version: 5.0.0
@@ -31,3 +30,12 @@ php artisan key:generate
 ```
 
 You can then run the existing update command (`composer update && ...`) whenever you need to refresh the installation after syncing new changes.
+### FX
+
+- Official foreign exchange providers for Iran (NIMA), China (PBOC), Turkey (TCMB) and Russia (CBR) can be configured from `config/exchange.php`. Each provider is queried in the order defined by `fallback_order`, so outages automatically fail over to the next service.
+- Refresh rates with `php artisan exchange:update`. Pass `--symbols=USD,EUR` to limit the currencies fetched or `--sync` to process without queue workers.
+- Updated rates are cached (see the `exchange.cache_store` option) and persisted for payments/withdrawals through the `SyncExchangeRates` job.
+- Run the FX integration tests with `php artisan test --group=exchange` or `php artisan test --filter=ExchangeRateIntegrationTest` to validate fallback behaviour and persistence.
+## Branch synchronization
+
+All recent pull request changes have been merged into the `main` branch so it now mirrors the reviewed updates from the feature workflows. This ensures the default branch contains the latest application improvements without requiring additional manual steps.

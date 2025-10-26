@@ -3,26 +3,38 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Deployment\CanaryReleaseManager;
+use App\Services\Deployment\FeatureToggle;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ServiceProvider;
 
 ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
 class AppServiceProvider extends ServiceProvider
 {
+    use LogsAudit;
+
     /**
      * Register any application services.
      *
      * @return void
-     */
+    */
     public function register()
     {
-        //
+        $this->app->singleton(FeatureToggle::class, function ($app) {
+            return new FeatureToggle();
+        });
+
+        $this->app->singleton(CanaryReleaseManager::class, function ($app) {
+            return new CanaryReleaseManager($app->make(FeatureToggle::class));
+        });
     }
 
     /**
@@ -40,6 +52,16 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        $this->logAuditAction('app_service_provider.boot', [
+            'payload' => [
+                'force_https' => config('app.force_https'),
+            ],
+            'result' => [
+                'validators_extended' => true,
+            ],
+            'status' => 'success',
+        ]);
     }
 
     /**

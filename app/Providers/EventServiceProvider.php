@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Events\Transaction\TransactionStageChanged;
+use App\Events\Transaction\TransactionStageFailed;
+use App\Listeners\Transaction\QueueTransactionStageCallback;
+use App\Listeners\Transaction\RunTransactionCompensation;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -17,6 +21,12 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         Registered::class => [
             SendEmailVerificationNotification::class,
+        ],
+        TransactionStageChanged::class => [
+            QueueTransactionStageCallback::class,
+        ],
+        TransactionStageFailed::class => [
+            RunTransactionCompensation::class,
         ],
     ];
 

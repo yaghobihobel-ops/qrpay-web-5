@@ -72,7 +72,7 @@ Route::prefix("agent")->name("agent.")->group(function(){
 
     //Mobile TopUp
     Route::middleware('module:agent-mobile-top-up')->group(function(){
-        Route::controller(MobileTopupController::class)->prefix('mobile-topup')->name('mobile.topup.')->group(function(){
+        Route::controller(MobileTopupController::class)->prefix('mobile-topup')->name('mobile.topup.')->middleware('domain.rate_limit:topup,agent-mobile-topup')->group(function(){
             Route::get('/','index')->name('index');
             Route::post('type','selectType')->name('type');
              //manual methods
@@ -92,7 +92,7 @@ Route::prefix("agent")->name("agent.")->group(function(){
 
     //withdraw money
     Route::middleware('module:agent-withdraw-money')->group(function(){
-        Route::controller(WithdrawController::class)->prefix('withdraw')->name('money.out.')->group(function(){
+        Route::controller(WithdrawController::class)->prefix('withdraw')->name('money.out.')->middleware('domain.rate_limit:withdrawal,agent-withdraw')->group(function(){
             Route::get('/','index')->name('index');
             Route::post('insert','paymentInsert')->name('insert')->middleware(['kyc.verification.guard']);
             Route::get('preview','preview')->name('preview');
