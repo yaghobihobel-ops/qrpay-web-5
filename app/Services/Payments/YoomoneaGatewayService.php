@@ -5,6 +5,7 @@ namespace App\Services\Payments;
 use App\Contracts\Payments\RegionalPaymentProviderInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use function filter_var;
 
 class YoomoneaGatewayService implements RegionalPaymentProviderInterface
 {
@@ -17,7 +18,7 @@ class YoomoneaGatewayService implements RegionalPaymentProviderInterface
     public function __construct(?array $config = null)
     {
         $this->config = $config ?? config('payments.providers.yoomonea', []);
-        $this->sandbox = (bool) config('payments.feature_flags.sandbox', true);
+        $this->sandbox = filter_var(config('payments.feature_flags.sandbox', true), FILTER_VALIDATE_BOOLEAN);
     }
 
     public function authenticate(): string

@@ -1,9 +1,17 @@
 <?php
 
+$boolEnv = static function (string $key, bool $default = false): bool {
+    $value = env($key, $default);
+
+    $filtered = \filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+    return $filtered ?? $default;
+};
+
 return [
     'feature_flags' => [
-        'blubank' => env('FEATURE_PAYOUTS_BLUBANK', false),
-        'sandbox' => env('FEATURE_PAYOUTS_SANDBOX', true),
+        'blubank' => $boolEnv('FEATURE_PAYOUTS_BLUBANK', false),
+        'sandbox' => $boolEnv('FEATURE_PAYOUTS_SANDBOX', true),
     ],
 
     'providers' => [
@@ -26,7 +34,7 @@ return [
     ],
 
     'sandbox' => [
-        'allow_mock_signatures' => env('PAYOUTS_SANDBOX_ALLOW_SIGNATURES', true),
+        'allow_mock_signatures' => $boolEnv('PAYOUTS_SANDBOX_ALLOW_SIGNATURES', true),
         'default_response_delay' => env('PAYOUTS_SANDBOX_DELAY_MS', 200),
     ],
 ];

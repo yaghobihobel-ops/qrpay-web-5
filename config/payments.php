@@ -1,10 +1,18 @@
 <?php
 
+$boolEnv = static function (string $key, bool $default = false): bool {
+    $value = env($key, $default);
+
+    $filtered = \filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+    return $filtered ?? $default;
+};
+
 return [
     'feature_flags' => [
-        'alipay' => env('FEATURE_PAYMENTS_ALIPAY', false),
-        'yoomonea' => env('FEATURE_PAYMENTS_YOOMONEA', false),
-        'sandbox' => env('FEATURE_PAYMENTS_SANDBOX', true),
+        'alipay' => $boolEnv('FEATURE_PAYMENTS_ALIPAY', false),
+        'yoomonea' => $boolEnv('FEATURE_PAYMENTS_YOOMONEA', false),
+        'sandbox' => $boolEnv('FEATURE_PAYMENTS_SANDBOX', true),
     ],
 
     'providers' => [
@@ -43,7 +51,7 @@ return [
     ],
 
     'sandbox' => [
-        'allow_mock_signatures' => env('PAYMENTS_SANDBOX_ALLOW_SIGNATURES', true),
+        'allow_mock_signatures' => $boolEnv('PAYMENTS_SANDBOX_ALLOW_SIGNATURES', true),
         'default_response_delay' => env('PAYMENTS_SANDBOX_DELAY_MS', 150),
     ],
 ];
