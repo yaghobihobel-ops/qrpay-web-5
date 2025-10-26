@@ -13,6 +13,23 @@ Please Use This Commands On Your Terminal To Update Full System
 1. To Run project Please Run This Command On Your Terminal
     composer update && composer dumpautoload && php artisan migrate:fresh --seed && php artisan passport:install --force
 
+## Local environment requirements
+
+To install the PHP dependencies successfully you now need a PHP runtime that satisfies the packages bundled with Laravel Passport:
+
+- **PHP 8.1 or newer** (8.1, 8.2, 8.3, or 8.4 all work)
+- Composer 2.x
+
+If you are using Laragon or another local stack make sure PHP 8.1+ is selected before running Composer. With an older PHP binary Composer will refuse to install `lcobucci/clock`, which is required by Passport.
+
+Once PHP 8.1+ is active you can bootstrap the project with:
+
+```bash
+composer install
+php artisan key:generate
+```
+
+You can then run the existing update command (`composer update && ...`) whenever you need to refresh the installation after syncing new changes.
 ### FX
 
 - Official foreign exchange providers for Iran (NIMA), China (PBOC), Turkey (TCMB) and Russia (CBR) can be configured from `config/exchange.php`. Each provider is queried in the order defined by `fallback_order`, so outages automatically fail over to the next service.
