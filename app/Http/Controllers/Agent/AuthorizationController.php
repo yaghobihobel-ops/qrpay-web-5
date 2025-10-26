@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Agent;
 
 use App\Constants\GlobalConst;
 use App\Http\Controllers\Controller;
+use App\Traits\Compliance\HandlesComplianceScreening;
 use App\Models\Admin\SetupKyc;
 use App\Models\AgentAuthorization;
 use App\Notifications\User\Auth\SendAuthorizationCode;
@@ -15,9 +16,11 @@ use App\Traits\ControlDynamicInputFields;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Services\Security\DeviceFingerprintService;
 
 class AuthorizationController extends Controller
 {
+    use HandlesComplianceScreening;
     use ControlDynamicInputFields;
     /**
      * Display a listing of the resource.
@@ -153,6 +156,7 @@ class AuthorizationController extends Controller
                 'kyc_verified'  => GlobalConst::PENDING,
             ]);
             DB::commit();
+            $this->runComplianceScreening($user, $get_values);
         }catch(Exception $e) {
             DB::rollBack();
             $user->update([
@@ -190,6 +194,7 @@ class AuthorizationController extends Controller
                 'two_factor_verified'   => true,
 
             ]);
+            app(DeviceFingerprintService::class)->trustCurrent($request, $user);
 
             return redirect()->intended(route('agent.dashboard'));
         }

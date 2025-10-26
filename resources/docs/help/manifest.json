@@ -1,0 +1,329 @@
+{
+  "default_language": "en",
+  "sections": [
+    {
+      "id": "payments",
+      "title": {
+        "en": "Payments",
+        "fa": "پرداخت‌ها"
+      },
+      "summary": {
+        "en": "Guides for collecting payments, managing settlement rules, and understanding supported methods.",
+        "fa": "راهنمای جمع‌آوری پرداخت‌ها، مدیریت قوانین تسویه و شناخت روش‌های پشتیبانی‌شده."
+      },
+      "category": "operations",
+      "default_language": "en",
+      "tags": ["checkout", "payment", "link"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released_at": "2024-10-25",
+          "faqs": [
+            {
+              "id": "payments.create-link",
+              "question": {
+                "en": "How do I create a payment link?",
+                "fa": "چگونه لینک پرداخت بسازم؟"
+              },
+              "anchor": "create-payment-link"
+            },
+            {
+              "id": "payments.settlement",
+              "question": {
+                "en": "When are settlements processed?",
+                "fa": "تسویه‌ها چه زمانی انجام می‌شوند؟"
+              },
+              "anchor": "settlement-window"
+            },
+            {
+              "id": "payments.retry",
+              "question": {
+                "en": "Can customers retry failed payments?",
+                "fa": "آیا مشتریان می‌توانند پرداخت ناموفق را دوباره تلاش کنند؟"
+              },
+              "anchor": "retry-policies"
+            }
+          ],
+          "languages": {
+            "en": {
+              "path": "payments/en/1.0.0.md"
+            },
+            "fa": {
+              "path": "payments/fa/1.0.0.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "withdrawals",
+      "title": {
+        "en": "Withdrawals",
+        "fa": "برداشت‌ها"
+      },
+      "summary": {
+        "en": "Instructions for cashing out balances, compliance checks, and payout troubleshooting.",
+        "fa": "آموزش برداشت موجودی، بررسی‌های تطبیق و رفع خطاهای پرداخت."
+      },
+      "category": "operations",
+      "default_language": "en",
+      "tags": ["withdraw", "payout", "settlement"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released_at": "2024-10-25",
+          "faqs": [
+            {
+              "id": "withdrawals.limits",
+              "question": {
+                "en": "What are the withdrawal limits?",
+                "fa": "محدودیت‌های برداشت چیست؟"
+              },
+              "anchor": "withdrawal-limits"
+            },
+            {
+              "id": "withdrawals.review",
+              "question": {
+                "en": "Why is my withdrawal under review?",
+                "fa": "چرا برداشت من در حال بررسی است؟"
+              },
+              "anchor": "compliance-review"
+            },
+            {
+              "id": "withdrawals.failures",
+              "question": {
+                "en": "How do I resolve failed payouts?",
+                "fa": "چگونه برداشت ناموفق را رفع کنم؟"
+              },
+              "anchor": "failed-payouts"
+            }
+          ],
+          "languages": {
+            "en": {
+              "path": "withdrawals/en/1.0.0.md"
+            },
+            "fa": {
+              "path": "withdrawals/fa/1.0.0.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "exchange",
+      "title": {
+        "en": "Exchange",
+        "fa": "اگزچنج"
+      },
+      "summary": {
+        "en": "Currency conversion rules, margin settings, and reconciliation tips.",
+        "fa": "قوانین تبدیل ارز، تنظیم حاشیه سود و نکات تسویه حساب."
+      },
+      "category": "treasury",
+      "default_language": "en",
+      "tags": ["fx", "conversion"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released_at": "2024-10-25",
+          "faqs": [
+            {
+              "id": "exchange.rates",
+              "question": {
+                "en": "Where do exchange rates come from?",
+                "fa": "نرخ‌های تبدیل از کجا تامین می‌شوند؟"
+              },
+              "anchor": "rate-source"
+            },
+            {
+              "id": "exchange.margins",
+              "question": {
+                "en": "How can I configure FX margins?",
+                "fa": "چگونه حاشیه نرخ تبدیل را تنظیم کنم؟"
+              },
+              "anchor": "margin-configuration"
+            },
+            {
+              "id": "exchange.disputes",
+              "question": {
+                "en": "What if customers dispute the conversion rate?",
+                "fa": "اگر مشتری نرخ تبدیل را زیر سؤال ببرد چه کنم؟"
+              },
+              "anchor": "customer-disputes"
+            }
+          ],
+          "languages": {
+            "en": {
+              "path": "exchange/en/1.0.0.md"
+            },
+            "fa": {
+              "path": "exchange/fa/1.0.0.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "kyc",
+      "title": {
+        "en": "KYC",
+        "fa": "احراز هویت"
+      },
+      "summary": {
+        "en": "Know your customer (KYC) onboarding flows, document rules, and remediation.",
+        "fa": "مراحل احراز هویت مشتری، قوانین مدارک و فرآیند اصلاح."
+      },
+      "category": "compliance",
+      "default_language": "en",
+      "tags": ["compliance", "verification"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released_at": "2024-10-25",
+          "faqs": [
+            {
+              "id": "kyc.documents",
+              "question": {
+                "en": "Which documents are accepted?",
+                "fa": "کدام مدارک پذیرفته می‌شوند؟"
+              },
+              "anchor": "accepted-documents"
+            },
+            {
+              "id": "kyc.timelines",
+              "question": {
+                "en": "How long does verification take?",
+                "fa": "زمان بررسی احراز هویت چقدر است؟"
+              },
+              "anchor": "verification-timelines"
+            },
+            {
+              "id": "kyc.resubmission",
+              "question": {
+                "en": "How do I resubmit rejected KYC?",
+                "fa": "چگونه مدارک رد شده را دوباره ارسال کنم؟"
+              },
+              "anchor": "resubmit-kyc"
+            }
+          ],
+          "languages": {
+            "en": {
+              "path": "kyc/en/1.0.0.md"
+            },
+            "fa": {
+              "path": "kyc/fa/1.0.0.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cards",
+      "title": {
+        "en": "Cards",
+        "fa": "کارت‌ها"
+      },
+      "summary": {
+        "en": "Virtual card issuance, limits, and lifecycle management guidance.",
+        "fa": "راهنمای صدور کارت مجازی، محدودیت‌ها و مدیریت چرخه عمر."
+      },
+      "category": "products",
+      "default_language": "en",
+      "tags": ["card", "virtual"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released_at": "2024-10-25",
+          "faqs": [
+            {
+              "id": "cards.issuance",
+              "question": {
+                "en": "How do I issue a new card?",
+                "fa": "چگونه کارت جدید صادر کنم؟"
+              },
+              "anchor": "issue-card"
+            },
+            {
+              "id": "cards.funding",
+              "question": {
+                "en": "What are the funding options?",
+                "fa": "روش‌های شارژ کارت چیست؟"
+              },
+              "anchor": "funding-options"
+            },
+            {
+              "id": "cards.security",
+              "question": {
+                "en": "How do I freeze or close a card?",
+                "fa": "چگونه کارت را مسدود یا لغو کنم؟"
+              },
+              "anchor": "card-security"
+            }
+          ],
+          "languages": {
+            "en": {
+              "path": "cards/en/1.0.0.md"
+            },
+            "fa": {
+              "path": "cards/fa/1.0.0.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "developer_api",
+      "title": {
+        "en": "API",
+        "fa": "API"
+      },
+      "summary": {
+        "en": "API authentication, error handling, and integration recipes.",
+        "fa": "احراز هویت API، مدیریت خطا و الگوهای پیاده‌سازی."
+      },
+      "category": "developers",
+      "default_language": "en",
+      "tags": ["api", "integration"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released_at": "2024-10-25",
+          "faqs": [
+            {
+              "id": "api.auth",
+              "question": {
+                "en": "How do I authenticate API calls?",
+                "fa": "چگونه درخواست‌های API را احراز هویت کنم؟"
+              },
+              "anchor": "api-authentication"
+            },
+            {
+              "id": "api.rate-limits",
+              "question": {
+                "en": "What are the rate limits?",
+                "fa": "محدودیت‌های فراخوان API چیست؟"
+              },
+              "anchor": "rate-limits"
+            },
+            {
+              "id": "api.errors",
+              "question": {
+                "en": "How should I handle errors?",
+                "fa": "چگونه خطاهای API را مدیریت کنم؟"
+              },
+              "anchor": "error-handling"
+            }
+          ],
+          "languages": {
+            "en": {
+              "path": "developer_api/en/1.0.0.md"
+            },
+            "fa": {
+              "path": "developer_api/fa/1.0.0.md"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

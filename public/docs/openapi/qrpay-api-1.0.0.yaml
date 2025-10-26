@@ -1,0 +1,337 @@
+openapi: 3.1.0
+info:
+  title: QRPay API
+  description: |
+    The QRPay API enables merchants to initiate QR-based payment requests, capture payments, and verify transaction statuses.
+    This specification describes version **1.0.0** of the public API and is compatible with the SDKs published to GitHub Packages.
+  version: 1.0.0
+  contact:
+    name: QRPay Developer Relations
+    url: https://developer.qrpay.test
+    email: devrel@qrpay.test
+servers:
+  - url: https://sandbox-api.qrpay.test
+    description: Sandbox environment for end-to-end testing
+  - url: https://api.qrpay.test
+    description: Production environment
+tags:
+  - name: Authentication
+    description: Retrieve tokens used to authorize requests.
+  - name: Payments
+    description: Initiate and manage payment requests.
+paths:
+  /v1/auth/token:
+    post:
+      tags:
+        - Authentication
+      summary: Exchange API keys for an access token
+      operationId: createAccessToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+            examples:
+              basic:
+                summary: Merchant credential exchange
+                value:
+                  clientId: MERCHANT_CLIENT_ID
+                  clientSecret: MERCHANT_CLIENT_SECRET
+                  scope: payments:write payments:read
+      responses:
+        '200':
+          description: Successful token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTokenResponse'
+              examples:
+                success:
+                  value:
+                    accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    tokenType: Bearer
+                    expiresIn: 3600
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/payments:
+    post:
+      tags:
+        - Payments
+      summary: Create a payment intent
+      operationId: createPayment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+            examples:
+              qr_payment:
+                summary: QR code payment
+                value:
+                  amount: 99.5
+                  currency: USD
+                  referenceId: INV-48291
+                  customer:
+                    name: Jane Doe
+                    email: jane@example.com
+                    phone: '+15551234567'
+                  metadata:
+                    orderId: 2811
+                    channel: web
+      responses:
+        '201':
+          description: Payment intent created
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Resource URL for the new payment intent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+              examples:
+                created:
+                  value:
+                    id: pay_01h9t0d3ezb9f61wn4vp2m8v1k
+                    status: pending
+                    amount: 99.5
+                    currency: USD
+                    qrCodeUrl: https://cdn.qrpay.test/qrcodes/pay_01h9t0d3ezb9f61wn4vp2m8v1k.png
+                    expiresAt: 2024-05-21T10:15:00Z
+                    referenceId: INV-48291
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+  /v1/payments/{paymentId}:
+    get:
+      tags:
+        - Payments
+      summary: Retrieve the latest state of a payment intent
+      operationId: getPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Payment found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    PaymentId:
+      name: paymentId
+      in: path
+      required: true
+      description: Unique identifier returned when the payment was created
+      schema:
+        type: string
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: invalid_request
+            message:
+              type: string
+              example: One or more parameters are invalid.
+            details:
+              type: array
+              items:
+                type: string
+      required:
+        - status
+        - error
+    CreateTokenRequest:
+      type: object
+      properties:
+        clientId:
+          type: string
+          description: Public client identifier issued from the merchant dashboard.
+        clientSecret:
+          type: string
+          description: Confidential client secret issued alongside the client ID.
+        scope:
+          type: string
+          description: Space-delimited list of scopes requested by the client.
+      required:
+        - clientId
+        - clientSecret
+    CreateTokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          format: int64
+        scope:
+          type: string
+      required:
+        - accessToken
+        - tokenType
+        - expiresIn
+    CreatePaymentRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+          minimum: 0.5
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        referenceId:
+          type: string
+          description: Correlates the payment intent with your internal system.
+        customer:
+          $ref: '#/components/schemas/Customer'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+        - amount
+        - currency
+        - referenceId
+    Customer:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+      required:
+        - name
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending, succeeded, failed, cancelled]
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+        qrCodeUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        referenceId:
+          type: string
+        customer:
+          $ref: '#/components/schemas/Customer'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - status
+        - amount
+        - currency
+        - referenceId
+  responses:
+    BadRequestError:
+      description: Request is malformed or missing required parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid_parameters:
+              summary: Missing amount
+              value:
+                status: error
+                error:
+                  code: invalid_request
+                  message: amount is required
+                  details:
+                    - amount
+    UnauthorizedError:
+      description: Authentication failed due to invalid or expired credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid_token:
+              value:
+                status: error
+                error:
+                  code: invalid_token
+                  message: Access token is invalid or has expired.
+    UnprocessableEntityError:
+      description: Validation succeeded but the payment could not be processed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            insufficient_funds:
+              value:
+                status: error
+                error:
+                  code: insufficient_funds
+                  message: Customer balance is insufficient.
+                  details:
+                    - customer.balance
+    NotFoundError:
+      description: The requested resource could not be found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            payment_missing:
+              value:
+                status: error
+                error:
+                  code: payment_not_found
+                  message: No payment found for id pay_01h9t0d3ezb9f61wn4vp2m8v1k

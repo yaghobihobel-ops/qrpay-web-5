@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'sync'),
+    'default' => env('QUEUE_CONNECTION', 'redis'),
 
     /*
     |--------------------------------------------------------------------------
@@ -67,6 +67,33 @@ return [
             'connection' => 'default',
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => 90,
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        'bill-payments' => [
+            'driver' => 'redis',
+            'connection' => 'default',
+            'queue' => env('QUEUE_BILL_PAYMENTS', 'bill-payments'),
+            'retry_after' => 120,
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        'notifications' => [
+            'driver' => 'redis',
+            'connection' => 'default',
+            'queue' => env('QUEUE_NOTIFICATIONS', 'notifications'),
+            'retry_after' => 90,
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        'reports' => [
+            'driver' => 'redis',
+            'connection' => 'default',
+            'queue' => env('QUEUE_REPORTING', 'reports'),
+            'retry_after' => 300,
             'block_for' => null,
             'after_commit' => false,
         ],

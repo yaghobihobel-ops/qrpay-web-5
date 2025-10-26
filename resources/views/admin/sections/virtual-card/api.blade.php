@@ -148,12 +148,33 @@
                                 </div>
                             </div>
                             <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 form-group">
+                                <label>{{ __("City") }}*</label>
+                                <div class="input-group append">
+                                    <span class="input-group-text"><i class="las la-city"></i></span>
+                                    <input type="text" class="form--control" name="strowallet_city" value="{{ old('strowallet_city',@$api->config->strowallet_city) }}">
+                                </div>
+                            </div>
+                            <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 form-group">
+                                <label>{{ __("Country") }}*</label>
+                                <div class="input-group append">
+                                    <span class="input-group-text"><i class="las la-flag"></i></span>
+                                    <input type="text" class="form--control" name="strowallet_country" value="{{ old('strowallet_country',@$api->config->strowallet_country) }}">
+                                </div>
+                            </div>
+                            <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 form-group">
                                 @include('admin.components.form.switcher', [
                                     'label'         => __('Mode'),
                                     'value'         => old('strowallet_mode',@$api->config->strowallet_mode),
                                     'name'          => "strowallet_mode",
                                     'options'       => [__('Live') => global_const()::LIVE,__('Sandbox') => global_const()::SANDBOX]
                                 ])
+                            </div>
+                            <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 form-group">
+                                <label>{{ __("Developer Code") }}*</label>
+                                <div class="input-group append">
+                                    <span class="input-group-text"><i class="las la-code"></i></span>
+                                    <input type="text" class="form--control" name="strowallet_developer_code" value="{{ old('strowallet_developer_code',@$api->config->strowallet_developer_code) }}">
+                                </div>
                             </div>
                         </div>
                     </div>

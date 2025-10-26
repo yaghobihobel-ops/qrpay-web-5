@@ -29,4 +29,35 @@
        --primary-color: {{$color}};
    }
 
+   .developer-main-wrapper .ordered-list {
+       list-style: decimal;
+       padding-left: 1.5rem;
+       line-height: 1.7;
+   }
+
+   .developer-main-wrapper .unordered-list {
+       list-style: disc;
+       padding-left: 1.5rem;
+       line-height: 1.7;
+   }
+
+   .code-sample-grid {
+       display: grid;
+       gap: 1.5rem;
+   }
+
+   @media (min-width: 992px) {
+       .code-sample-grid {
+           grid-template-columns: repeat(3, minmax(0, 1fr));
+       }
+   }
+
+   .code-sample-grid pre {
+       background: #0f172a;
+       color: #f8fafc;
+       padding: 1.25rem;
+       border-radius: 12px;
+       overflow-x: auto;
+   }
+
 </style>
