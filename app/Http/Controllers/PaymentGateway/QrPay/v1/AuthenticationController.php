@@ -5,7 +5,7 @@ namespace App\Http\Controllers\PaymentGateway\QrPay\v1;
 use Exception;
 use Illuminate\Http\Request;
 use App\Constants\GlobalConst;
-use App\Http\Helpers\Response;
+use App\Enums\ApiErrorCode;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
@@ -28,7 +28,14 @@ class AuthenticationController extends Controller
             'secret_id'    => "Invalid secret ID",
         ]);
 
-        if($validator->fails()) return Response::paymentApiError($validator->errors()->all(),[]);
+        if($validator->fails()) {
+            return response()->error(
+                __('The given data was invalid.'),
+                ApiErrorCode::VALIDATION_ERROR,
+                ['errors' => $validator->errors()->all()],
+                422
+            );
+        }
 
         $validated = $validator->validate();
 
@@ -46,14 +53,26 @@ class AuthenticationController extends Controller
                                                         ->first();
         }
 
-        if(!$developer_credentials) return Response::paymentApiError([__('Requested credentials is invalid')]);
+        if(!$developer_credentials) {
+            return response()->error(
+                __('Requested credentials is invalid'),
+                ApiErrorCode::INVALID_CREDENTIALS
+            );
+        }
 
         $access_token = generate_unique_string('payment_order_requests','access_token',350);
         $token = generate_unique_string('payment_order_requests','token',60);
         $trx_id = generate_unique_string('payment_order_requests','trx_id',16);
 
         $merchant = $developer_credentials->merchant;
-        if(!$merchant) return Response::paymentApiError([__('Merchant doesn\'t exists or credentials is invalid')],[],404);
+        if(!$merchant) {
+            return response()->error(
+                __('Merchant doesn\'t exists or credentials is invalid'),
+                ApiErrorCode::MERCHANT_NOT_FOUND,
+                null,
+                404
+            );
+        }
 
         // // Comment for Qrpay
         // if($merchant->type != GlobalConst::EXPRESS) {
@@ -74,9 +93,21 @@ class AuthenticationController extends Controller
             DB::commit();
         }catch(Exception $e) {
             DB::rollBack();
-            return Response::paymentApiError([__('Failed to create access token. Please try again')],[],500);
+            return response()->error(
+                __('Failed to create access token. Please try again'),
+                ApiErrorCode::PAYMENT_CREATION_FAILED,
+                null,
+                500
+            );
         }
-        return Response::paymentApiSuccess(['SUCCESS'],['access_token' => $access_token, 'expire_time' => $this->access_token_expire_time],200);
+        return response()->success(
+            __('Access token generated successfully.'),
+            [
+                'status' => 'SUCCESS',
+                'access_token' => $access_token,
+                'expire_time' => $this->access_token_expire_time,
+            ]
+        );
     }
 
     public function deleteOldRecords() {

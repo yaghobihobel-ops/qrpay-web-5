@@ -41,4 +41,12 @@ return [
         'redirect' => env('FACEBOOK_CALLBACK',""),
     ],
 
+    'metabase' => [
+        'dashboard_url' => env('METABASE_DASHBOARD_URL'),
+    ],
+
+    'grafana' => [
+        'dashboard_url' => env('GRAFANA_DASHBOARD_URL'),
+    ],
+
 ];

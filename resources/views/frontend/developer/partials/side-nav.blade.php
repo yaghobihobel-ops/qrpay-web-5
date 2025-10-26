@@ -7,6 +7,7 @@
                 </a>
             </li>
             <li class="sidebar-single-menu has-sub @if(
+                menuActive('developer.quickstart') ||
                 menuActive('developer.prerequisites') ||
                 menuActive('developer.authentication')||
                 menuActive('developer.base.url')
@@ -17,11 +18,17 @@
                 </a>
                 <ul class="sidebar-submenu
                 @if(
+                menuActive('developer.quickstart') ||
                 menuActive('developer.prerequisites') ||
                 menuActive('developer.authentication')||
                 menuActive('developer.base.url')
 
                 ) open @endif">
+                    <li class="nav-item {{ menuActive('developer.quickstart') }}">
+                        <a href="{{ setRoute('developer.quickstart') }}">
+                            <span class="title">{{ __("Quick Start") }}</span>
+                        </a>
+                    </li>
                     <li class="nav-item {{ menuActive('developer.prerequisites') }}">
                         <a href="{{ setRoute('developer.prerequisites') }}">
                             <span class="title">{{ __("Prerequisites") }}</span>
@@ -35,6 +42,43 @@
                     <li class="nav-item {{ menuActive('developer.base.url') }}">
                         <a href="{{ setRoute('developer.base.url') }}">
                             <span class="title">{{ __("Base URL") }}</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li class="sidebar-single-menu has-sub  @if(
+                menuActive('developer.sandbox')||
+                menuActive('developer.openapi') ||
+                menuActive('developer.postman') ||
+                menuActive('developer.feedback')
+                ) active @endif">
+                <a href="javascript:void(0)">
+                    <span class="title">{{ __("Tools & Resources") }}</span>
+                </a>
+                <ul class="sidebar-submenu  @if(
+                    menuActive('developer.sandbox')||
+                    menuActive('developer.openapi') ||
+                    menuActive('developer.postman') ||
+                    menuActive('developer.feedback')
+                    ) open @endif">
+                    <li class="nav-item {{ menuActive('developer.sandbox') }}">
+                        <a href="{{  setRoute('developer.sandbox')  }}">
+                            <span class="title">{{ __("Sandbox Environment") }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item {{ menuActive('developer.openapi') }}">
+                        <a href="{{ setRoute('developer.openapi') }}">
+                            <span class="title">{{ __("OpenAPI & SDKs") }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item {{  menuActive('developer.postman') }}">
+                        <a href="{{ setRoute('developer.postman') }}">
+                            <span class="title">{{ __("Postman Collection") }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item {{  menuActive('developer.feedback') }}">
+                        <a href="{{ setRoute('developer.feedback') }}">
+                            <span class="title">{{ __("Feedback & Changelog") }}</span>
                         </a>
                     </li>
                 </ul>

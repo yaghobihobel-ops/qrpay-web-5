@@ -25,6 +25,8 @@ use App\Models\StrowalletCustomerKyc;
 use App\Notifications\Admin\ActivityNotification;
 use App\Notifications\User\VirtualCard\Fund;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\VirtualCard\KycProviderInterface;
+use App\Services\VirtualCard\VirtualCardProviderInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -34,9 +36,14 @@ class StrowalletVirtualController extends Controller
     protected $api;
     protected $card_limit;
     protected $basic_settings;
+    protected VirtualCardProviderInterface $virtualCardService;
+    protected KycProviderInterface $kycProvider;
 
-    public function __construct()
+    public function __construct(VirtualCardProviderInterface $virtualCardService, KycProviderInterface $kycProvider)
     {
+        $this->virtualCardService = $virtualCardService;
+        $this->kycProvider = $kycProvider;
+
         $cardApi = VirtualCardApi::first();
         $this->api =  $cardApi;
         $this->card_limit =  $cardApi->card_limit;
@@ -79,19 +86,14 @@ class StrowalletVirtualController extends Controller
         $myCard = StrowalletVirtualCard::where('card_id',$card_id)->first();
         if(!$myCard) return back()->with(['error' => [__("Something is wrong in your card")]]);
         if($myCard->card_status == 'pending'){
-            $card_details   = card_details($card_id,$this->api->config->strowallet_public_key,$this->api->config->strowallet_url);
+            $card_details   = $this->virtualCardService->getCardDetails($card_id);
 
             if($card_details['status'] == false){
                 return back()->with(['error' => [__("Your Card Is Pending! Please Contact With Admin")]]);
             }
 
-            $myCard->user_id                   = Auth::user()->id;
-            $myCard->card_status               = $card_details['data']['card_detail']['card_status'];
-            $myCard->card_number               = $card_details['data']['card_detail']['card_number'];
-            $myCard->last4                     = $card_details['data']['card_detail']['last4'];
-            $myCard->cvv                       = $card_details['data']['card_detail']['cvv'];
-            $myCard->expiry                    = $card_details['data']['card_detail']['expiry'];
-            $myCard->save();
+            $myCard->user_id = Auth::user()->id;
+            $this->virtualCardService->syncCardFromRemote($myCard, $card_details['data'] ?? [], Auth::user());
         }
         $cardApi = $this->api;
         return view('user.sections.virtual-card-strowallet.details',compact(
@@ -113,7 +115,7 @@ class StrowalletVirtualController extends Controller
             $customerEmail = $customer->customerEmail??"";
             $customerId = $customer->customerId??"";
 
-            $getCustomerInfo = get_customer($this->api->config->strowallet_public_key,$this->api->config->strowallet_url,$customerId,$customerEmail);
+            $getCustomerInfo = $this->kycProvider->getCustomer($customerId, $customerEmail);
             if( $getCustomerInfo['status'] == false){
                 return back()->with(['error' => [$getCustomerInfo['message'] ?? __("Something went wrong! Please try again.")]]);
             }
@@ -154,41 +156,18 @@ class StrowalletVirtualController extends Controller
 
         try{
             if($user->strowallet_customer == null){
-                if($request->hasFile("id_image_font")) {
-                    $image = upload_file($validated['id_image_font'],'card-kyc-images');
-                    $upload_image = upload_files_from_path_dynamic([$image['dev_path']],'card-kyc-images');
-                    $validated['id_image_font']     = $upload_image;
-                }
+                $existingKyc = StrowalletCustomerKyc::where('user_id',$user->id)->first();
+                $kycMedia = $this->kycProvider->storeKycMedia(
+                    $user,
+                    $request->file('id_image_font'),
+                    $request->file('user_image'),
+                    $existingKyc
+                );
 
-                //user image
-                if($request->hasFile("user_image")) {
-                    $image = upload_file($validated['user_image'],'card-kyc-images');
-                    $upload_image = upload_files_from_path_dynamic([$image['dev_path']],'card-kyc-images');
-                    $validated['user_image']     = $upload_image;
-                }
-                $exist_kyc = StrowalletCustomerKyc::where('user_id',$user->id)->first();
-                if($exist_kyc){
-                    $exist_kyc->update([
-                        'user_id'         =>  $user->id,
-                        'face_image'      =>  $validated['user_image'],
-                        'id_image'        =>  $validated['id_image_font']
-                    ]);
-                    $kyc_info = StrowalletCustomerKyc::where('user_id',$user->id)->first();
-                }else{
-                    //store kyc images
-                    $kyc_info = StrowalletCustomerKyc::create([
-                        'user_id'         =>  $user->id,
-                        'face_image'      =>  $validated['user_image'],
-                        'id_image'        =>  $validated['id_image_font']
-                    ]);
-                }
-                $idImage = $kyc_info->idImageData;
-                $userPhoto = $kyc_info->faceImageData;
+                $payload = Arr::except($validated,['id_image_font','user_image']);
+                $createCustomer = $this->kycProvider->createCustomer($user, $payload, $kycMedia);
 
-                $validated = Arr::except($validated,['id_image_font','user_image']);
-                $createCustomer     = stro_wallet_create_user($validated,$this->api->config->strowallet_public_key,$this->api->config->strowallet_url,$idImage,$userPhoto);
                 if( $createCustomer['status'] == false){
-                    $kyc_info->delete();
                     return $this->apiErrorHandle($createCustomer["message"]);
 
                 }
@@ -233,50 +212,29 @@ class StrowalletVirtualController extends Controller
         try{
             if($user->strowallet_customer != null){
                 $customer_kyc = StrowalletCustomerKyc::where('user_id',$user->id)->first();
-                if($request->hasFile("id_image_font")) {
-                    $id_image = upload_file($validated['id_image_font'],'card-kyc-images',);
-                    $upload_image = upload_files_from_path_dynamic([$id_image['dev_path']],'card-kyc-images',$customer_kyc->id_image??null);
-                    // delete_file($id_image['dev_path']);
-                    $validated['id_image_font']     = $upload_image;
-                }
+                $kycMedia = $this->kycProvider->storeKycMedia(
+                    $user,
+                    $request->file('id_image_font'),
+                    $request->file('user_image'),
+                    $customer_kyc
+                );
+                $customer_kyc = $kycMedia['record'];
 
-                //user image
-                if($request->hasFile("user_image")) {
-                    $user_image = upload_file($validated['user_image'],'card-kyc-images',$customer_kyc->face_image??null);
-                    $upload_image = upload_files_from_path_dynamic([$user_image['dev_path']],'card-kyc-images');
-                    // delete_file($user_image['dev_path']);
-                    $validated['user_image']     = $upload_image;
-                }
-                //store kyc images
-                if( $customer_kyc){
-                    $customer_kyc->update([
-                        'user_id'         =>  $user->id,
-                        'id_image'        =>  $validated['id_image_font'] ?? $customer_kyc->id_image,
-                        'face_image'      =>  $validated['user_image'] ??$customer_kyc->face_image
-                    ]);
-                }else{
-                    $customer_kyc = StrowalletCustomerKyc::create([
-                        'user_id'         =>  $user->id,
-                        'id_image'        =>  $validated['id_image_font'],
-                        'face_image'      =>  $validated['user_image']
-                    ]);
-                }
-
-                $idImage = $customer_kyc->idImageData;
-                $userPhoto = $customer_kyc->faceImageData;
-
-                $validated = Arr::except($validated,['id_image_font','user_image']);
-                $updateCustomer     = update_customer($validated,$this->api->config->strowallet_public_key,$this->api->config->strowallet_url,$idImage,$userPhoto,$user->strowallet_customer);
+                $payload = Arr::except($validated,['id_image_font','user_image']);
+                $updateCustomer = $this->kycProvider->updateCustomer(
+                    $user,
+                    $payload,
+                    $kycMedia,
+                    ['customer' => $user->strowallet_customer]
+                );
                 if( $updateCustomer['status'] == false){
-                    $customer_kyc->delete();
                     return $this->apiErrorHandle($updateCustomer["message"]);
                 }
 
                  //get customer api response
                 $customer = $user->strowallet_customer;
-                $getCustomerInfo = get_customer($this->api->config->strowallet_public_key,$this->api->config->strowallet_url,$updateCustomer['data']['customerId']??"",$updateCustomer['data']['customerEmail']??"");
+                $getCustomerInfo = $this->kycProvider->getCustomer($updateCustomer['data']['customerId']??"",$updateCustomer['data']['customerEmail']??"");
                 if( $getCustomerInfo['status'] == false){
-                    $customer_kyc->delete();
                     return back()->with(['error' => [$getCustomerInfo['message'] ?? __("Something went wrong! Please try again.")]]);
                 }
                 $customer               = (array) $customer;
@@ -352,7 +310,7 @@ class StrowalletVirtualController extends Controller
             return back()->with(['error' => [__("Sorry! You can not create more than")." ".$this->card_limit ." ".__("card using the same email address.")]]);
         }
         // for live code
-        $created_card = create_strowallet_virtual_card($user,$request->card_amount,$customer,$this->api->config->strowallet_public_key,$this->api->config->strowallet_url,$formData);
+        $created_card = $this->virtualCardService->createCard($user,(float)$request->card_amount,$customer,$formData);
 
         if($created_card['status'] == false){
             return back()->with(['error' => [$created_card['message']]]);
@@ -496,55 +454,24 @@ class StrowalletVirtualController extends Controller
             return Response::error($error,null,400);
         }
         $validated = $validator->safe()->all();
-        if($request->status == 1){
+        $shouldActivate = $request->status == 0;
+        $currentStatus = $request->status == 1 ? 1 : 0;
 
-            $card   = StrowalletVirtualCard::where('id',$request->data_target)->where('is_active',1)->first();
-            $client = new \GuzzleHttp\Client();
-            $public_key     = $this->api->config->strowallet_public_key;
-            $base_url       = $this->api->config->strowallet_url;
-
-            $response = $client->request('POST', $base_url.'action/status/?action=freeze&card_id='.$card->card_id.'&public_key='.$public_key, [
-            'headers' => [
-                'accept' => 'application/json',
-            ],
-            ]);
-
-            $result = $response->getBody();
-            $data  = json_decode($result, true);
-
-            if( isset($data['status']) ){
-                $card->is_active = 0;
-                $card->save();
-                $success = ['success' => [__('Card Freeze successfully')]];
-                return Response::success($success,null,200);
-            }else{
-                $error = ['error' =>  [$data['message']]];
-                return Response::error($error,null,400);
-            }
-        }else{
-
-            $card   = StrowalletVirtualCard::where('id',$request->data_target)->where('is_active',0)->first();
-            $client = new \GuzzleHttp\Client();
-            $public_key     = $this->api->config->strowallet_public_key;
-            $base_url       = $this->api->config->strowallet_url;
-
-            $response = $client->request('POST', $base_url.'action/status/?action=unfreeze&card_id='.$card->card_id.'&public_key='.$public_key, [
-                'headers' => [
-                    'accept' => 'application/json',
-                ],
-            ]);
-            $result = $response->getBody();
-            $data  = json_decode($result, true);
-            if(isset($data['status'])){
-                $card->is_active = 1;
-                $card->save();
-                $success = ['success' => [__('Card UnFreeze successfully')]];
-                return Response::success($success,null,200);
-            }else{
-                $error = ['error' =>  [$data['message']]];
-                return Response::error($error,null,400);
-            }
+        $card   = StrowalletVirtualCard::where('id',$request->data_target)->where('is_active',$currentStatus)->first();
+        if(!$card){
+            $error = ['error' => [__("Card not found for the requested action.")]];
+            return Response::error($error,null,404);
         }
+
+        $result = $this->virtualCardService->toggleCardStatus($card, $shouldActivate, auth()->user());
+
+        if($result['status']){
+            $success = ['success' => [$result['message']]];
+            return Response::success($success,null,200);
+        }
+
+        $error = ['error' => [$result['message'] ?? __("Something went wrong! Please try again.")]];
+        return Response::error($error,null,400);
 
     }
     public function makeDefaultOrRemove(Request $request) {

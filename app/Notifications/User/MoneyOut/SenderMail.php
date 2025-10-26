@@ -2,6 +2,7 @@
 
 namespace App\Notifications\User\MoneyOut;
 
+use App\Services\Notifications\LocalizedMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -49,19 +50,41 @@ class SenderMail extends Notification
         $trx_id = $this->data->trx_id;
         $date = Carbon::now();
         $dateTime = $date->format('Y-m-d h:i:s A');
-        return (new MailMessage)
+
+        $messaging = app(LocalizedMessagingService::class);
+        $context = $messaging->resolveUserContext($user);
+
+        $emailCopy = $messaging->emailTemplate('money_out.sender', [
+            'amount' => $data->request_amount,
+            'reference' => $trx_id,
+            'country' => $context['country'] ?? __('messaging.labels.scenario_playbook'),
+        ], $context, [
+            'subject' => $data->title,
+            'intro' => $data->title,
+        ]);
+
+        $mail = (new MailMessage)
                     ->greeting(__("Hello")." ".$user->fullname." !")
-                    ->subject($data->title)
-                    ->line(__("Sender Money Out Email Heading").":")
-                    ->line($data->title)
-                    ->line(__("web_trx_id").": " .$trx_id)
-                    ->line(__("request Amount").": " .$data->request_amount)
-                    ->line(__("Fees & Charges").": " .$data->charges)
-                    ->line(__("Total Payable Amount").": " .$data->payable)
-                    ->line(__("Recipient Received").": " .$data->received_amount)
-                    ->line(__("Status").": " .$data->status)
-                    ->line(__("Date And Time").": " .$dateTime)
-                    ->line(__('Thank you for using our application!'));
+                    ->subject($emailCopy['subject'])
+                    ->line(__("Sender Money Out Email Heading").":");
+
+        if (!empty($emailCopy['intro'])) {
+            $mail->line($emailCopy['intro']);
+        }
+
+        $mail->line(__("web_trx_id").": " .$trx_id)
+            ->line(__("request Amount").": " .$data->request_amount)
+            ->line(__("Fees & Charges").": " .$data->charges)
+            ->line(__("Total Payable Amount").": " .$data->payable)
+            ->line(__("Recipient Received").": " .$data->received_amount)
+            ->line(__("Status").": " .$data->status)
+            ->line(__("Date And Time").": " .$dateTime);
+
+        if (!empty($emailCopy['footer'])) {
+            $mail->line($emailCopy['footer']);
+        }
+
+        return $mail->line(__('Thank you for using our application!'));
     }
 
     /**
