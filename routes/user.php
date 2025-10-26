@@ -146,6 +146,7 @@ Route::prefix("user")->name("user.")->group(function(){
             Route::post('insert','paymentInsert')->name('insert')->middleware('kyc.verification.guard');
             Route::get('preview','preview')->name('preview');
             Route::post('confirm','confirmMoneyOut')->name('confirm')->middleware('kyc.verification.guard');
+            Route::post('quote','quote')->name('quote');
 
             //check bank validation
             Route::post('check/flutterwave/bank','checkBanks')->name('check.flutterwave.bank');

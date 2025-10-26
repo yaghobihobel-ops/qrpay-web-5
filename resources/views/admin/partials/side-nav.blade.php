@@ -56,6 +56,11 @@
                             'icon'      => "menu-icon las la-hand-holding-usd",
                         ],
                         [
+                            'title'     => __('Pricing Rules'),
+                            'route'     => 'admin.pricing-rules.index',
+                            'icon'      => 'menu-icon las la-percent',
+                        ],
+                        [
                             'title'     => "Virtual Card Api",
                             'route'     => "admin.virtual.card.api",
                             'icon'      => "menu-icon las la-wallet",
@@ -74,6 +79,11 @@
                             'title'     => __("Help Center Analytics"),
                             'route'     => "admin.help-center.analytics",
                             'icon'      => "menu-icon las la-chalkboard-teacher",
+                        ],
+                        [
+                            'title'     => __("Support Analytics"),
+                            'route'     => "admin.support.analytics",
+                            'icon'      => "menu-icon las la-headset",
                         ],
                     ]
                 ])

@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ProfitLogsController;
 use App\Http\Controllers\Admin\PushNotificationController;
 use App\Http\Controllers\Admin\QueueMonitorController;
+use App\Http\Controllers\Admin\RiskManagementController;
 use App\Http\Controllers\Admin\RemitanceController;
 use App\Http\Controllers\Admin\RequestMoneyController;
 use App\Http\Controllers\Admin\SendMoneyController;
@@ -51,6 +52,7 @@ use App\Http\Controllers\Admin\SetupNotificationController;
 use App\Http\Controllers\Admin\SetupPagesController;
 use App\Http\Controllers\Admin\SetupSectionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
+use App\Http\Controllers\Admin\Support\SupportAnalyticsController;
 use App\Http\Controllers\Admin\SystemMaintenanceController;
 use App\Http\Controllers\Admin\ToAgentMoneyOutController;
 use App\Http\Controllers\Admin\UsefulLInkController;
@@ -87,6 +89,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     Route::controller(HelpContentAnalyticsController::class)->prefix('help-center')->name('help-center.')->group(function () {
         Route::get('analytics', 'index')->name('analytics');
+    });
+
+    Route::controller(RiskManagementController::class)->prefix('risk')->name('risk.')->group(function () {
+        Route::get('dashboard', 'dashboard')->name('dashboard');
+        Route::post('rules', 'storeRule')->name('rules.store');
+        Route::put('rules/{rule}', 'updateRule')->name('rules.update');
+        Route::delete('rules/{rule}', 'deleteRule')->name('rules.delete');
+        Route::post('thresholds', 'storeThreshold')->name('thresholds.store');
+        Route::put('thresholds/{threshold}', 'updateThreshold')->name('thresholds.update');
+        Route::delete('thresholds/{threshold}', 'deleteThreshold')->name('thresholds.delete');
     });
     // Setup Currency Section
     Route::controller(CurrencyController::class)->prefix('currency')->name('currency.')->group(function () {
@@ -608,6 +620,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('queues/horizon', [QueueMonitorController::class, 'index'])->name('queues.horizon');
 
     // Support Ticked Section
+    Route::get('support/analytics', [SupportAnalyticsController::class, 'index'])->name('support.analytics');
+
     Route::controller(SupportTicketController::class)->prefix('support-ticket')->name('support.ticket.')->group(function () {
         Route::get('index', 'index')->name('index');
         Route::get('active', 'active')->name('active');

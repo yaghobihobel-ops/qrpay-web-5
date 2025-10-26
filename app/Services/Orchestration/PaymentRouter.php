@@ -67,10 +67,48 @@ class PaymentRouter
             ->filter(function (PaymentRoute $route) {
                 return isset($this->providers[$route->provider]);
             })
-            ->sort(function (PaymentRoute $left, PaymentRoute $right) {
-                return [$left->priority, (float) $left->fee] <=> [$right->priority, (float) $right->fee];
-            })
             ->values();
+
+        $routeQuotes = [];
+
+        foreach ($routes as $route) {
+            $route->setAttribute('dynamic_fee', (float) $route->fee);
+        }
+
+        if ($this->feeEngine) {
+            foreach ($routes as $route) {
+                try {
+                    $quote = $this->feeEngine->quote(
+                        $currency,
+                        $route->provider,
+                        'payout',
+                        $this->resolveUserFeeLevel($user),
+                        $amount,
+                        [
+                            'metadata' => [
+                                'route_id' => $route->id,
+                                'destination_country' => $destinationCountry,
+                            ],
+                        ]
+                    );
+
+                    $route->setAttribute('dynamic_fee', $quote->getConvertedFee());
+                    $routeQuotes[$route->id] = $quote;
+                } catch (PricingRuleNotFoundException $e) {
+                    // fall back to the static fee configured on the route
+                }
+            }
+        }
+
+        $routes = $routes->sort(function (PaymentRoute $left, PaymentRoute $right) {
+            return [
+                $left->priority,
+                (float) $left->getAttribute('dynamic_fee'),
+            ] <=> [
+                $right->priority,
+                (float) $right->getAttribute('dynamic_fee'),
+            ];
+        })->values();
 
         foreach ($routes as $route) {
             $provider = $this->providers[$route->provider];
@@ -106,7 +144,7 @@ class PaymentRouter
         array $slaPolicies
     ): bool {
         foreach ($slaPolicies as $policy) {
-            if (!\is_callable($policy)) {
+            if (! \is_callable($policy)) {
                 continue;
             }
 

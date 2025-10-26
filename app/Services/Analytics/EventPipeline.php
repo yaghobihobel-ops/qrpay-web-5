@@ -10,6 +10,7 @@ use GuzzleHttp\Client;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use JsonException;
 
 class EventPipeline
 {
@@ -27,13 +28,16 @@ class EventPipeline
     {
         $enriched = $this->enrichPayload($payload);
 
-        $this->client->ingest($enriched);
+        try {
+            $this->client->ingest($enriched);
+        } catch (\Throwable) {
+            $this->bufferPayload($enriched);
+        }
     }
 
     public function flushBuffer(): int
     {
-        $path = config('analytics.buffer_path');
-        $relative = str_replace(storage_path('app/'), '', $path);
+        $relative = $this->bufferPath();
 
         try {
             $contents = Storage::disk('local')->get($relative);
@@ -73,6 +77,33 @@ class EventPipeline
             'event_id' => $payload['event_id'] ?? Str::uuid()->toString(),
             'source' => $payload['source'] ?? config('app.name'),
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function bufferPayload(array $payload): void
+    {
+        $relative = $this->bufferPath();
+
+        try {
+            $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return;
+        }
+
+        try {
+            Storage::disk('local')->append($relative, $encoded);
+        } catch (\Throwable) {
+            // Swallow filesystem errors to avoid interrupting callers when buffering fails.
+        }
+    }
+
+    private function bufferPath(): string
+    {
+        $path = config('analytics.buffer_path');
+
+        return str_replace(storage_path('app/'), '', (string) $path);
     }
 
     private function resolveClient(): AnalyticsClientInterface
