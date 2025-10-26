@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Traits\AdminNotifications\AuthNotifications;
-use App\Traits\TracksQueryPerformance;
+use App\Services\Recommendations\RouteRecommendationEngine;
 
 class DashboardController extends Controller
 {
@@ -43,74 +43,75 @@ class DashboardController extends Controller
         $data['total_transaction'] = $successTransactionsQuery->count();
         $data['total_gift_cards'] = GiftCard::auth()->count();
 
-        $trendCalculator = function ($query, $column = 'request_amount', $isCount = false) {
-            $recentStart = Carbon::now()->subDays(30);
-            $previousStart = Carbon::now()->subDays(60);
+        $recommendationEngine = app(RouteRecommendationEngine::class);
+        $recommendation = $recommendationEngine->recommendFor(auth()->user());
 
-            $recentQuery = (clone $query)->where('created_at', '>=', $recentStart);
-            $previousQuery = (clone $query)->whereBetween('created_at', [$previousStart, $recentStart]);
+        $start = strtotime(date('Y-m-01'));
+        $end = strtotime(date('Y-m-31'));
+        // Add Money
+        $pending_data  = [];
+        $success_data  = [];
+        $canceled_data = [];
+        $hold_data     = [];
+        $month_day  = [];
+        // Money Out
+        $Money_out_pending_data  = [];
+        $Money_out_success_data  = [];
+        $Money_out_canceled_data = [];
+        $Money_out_hold_data     = [];
+        while ($start <= $end) {
+            $start_date = date('Y-m-d', $start);
 
-            $recentValue = $isCount ? $recentQuery->count() : $recentQuery->sum($column);
-            $previousValue = $isCount ? $previousQuery->count() : $previousQuery->sum($column);
 
-            if ($recentValue == 0 && $previousValue == 0) {
-                return ['value' => 0, 'direction' => 'up'];
-            }
-            $delta = $previousValue > 0 ? (($recentValue - $previousValue) / max($previousValue, 1)) * 100 : 100;
-            return ['value' => $delta, 'direction' => $delta >= 0 ? 'up' : 'down'];
-        };
+            // Monthly add money
+            $pending = Transaction::auth()->where('type', PaymentGatewayConst::TYPEADDMONEY)
+                                        ->whereDate('created_at',$start_date)
+                                        ->where('status', 2)
+                                        ->count();
+            $success = Transaction::auth()->where('type', PaymentGatewayConst::TYPEADDMONEY)
+                                        ->whereDate('created_at',$start_date)
+                                        ->where('status', 1)
+                                        ->count();
+            $canceled = Transaction::auth()->where('type', PaymentGatewayConst::TYPEADDMONEY)
+                                        ->whereDate('created_at',$start_date)
+                                        ->where('status', 4)
+                                        ->count();
+            $hold = Transaction::auth()->where('type', PaymentGatewayConst::TYPEADDMONEY)
+                                        ->whereDate('created_at',$start_date)
+                                        ->where('status', 3)
+                                        ->count();
 
-        $walletTrend = $trendCalculator(Transaction::auth()->where('status', PaymentGatewayConst::STATUSSUCCESS));
-        $withdrawTrend = $trendCalculator(Transaction::auth()->moneyOut()->where('status', PaymentGatewayConst::STATUSSUCCESS));
-        $remitTrend = $trendCalculator(Transaction::auth()->remitance()->where('attribute', PaymentGatewayConst::RECEIVED)->where('status', PaymentGatewayConst::STATUSSUCCESS));
-        $transactionTrend = $trendCalculator(Transaction::auth()->where('status', PaymentGatewayConst::STATUSSUCCESS), 'request_amount', true);
+            $pending_data[]  = $pending;
+            $success_data[]  = $success;
+            $canceled_data[] = $canceled;
+            $hold_data[]     = $hold;
 
-        $summaryCards = [
-            [
-                'title' => __('Wallet balance'),
-                'value' => $walletBalance,
-                'currency' => $baseCurrency->code,
-                'icon' => 'las la-wallet',
-                'trend' => number_format($walletTrend['value'], 1) . '%',
-                'trendDirection' => $walletTrend['direction'],
-                'subtitle' => __('Combined balances across active wallets'),
-            ],
-            [
-                'title' => __('Remittances received'),
-                'value' => $data['totalReceiveRemittance'],
-                'currency' => $baseCurrency->code,
-                'icon' => 'las la-arrow-circle-down',
-                'trend' => number_format($remitTrend['value'], 1) . '%',
-                'trendDirection' => $remitTrend['direction'],
-                'subtitle' => __('Successful incoming remittances'),
-            ],
-            [
-                'title' => __('Withdrawn this year'),
-                'value' => $data['withdraw'],
-                'currency' => $baseCurrency->code,
-                'icon' => 'las la-university',
-                'trend' => number_format($withdrawTrend['value'], 1) . '%',
-                'trendDirection' => $withdrawTrend['direction'],
-                'subtitle' => __('Settled withdraw requests'),
-            ],
-            [
-                'title' => __('Completed transactions'),
-                'value' => $data['total_transaction'],
-                'currency' => 'count',
-                'icon' => 'las la-check-circle',
-                'trend' => number_format($transactionTrend['value'], 1) . '%',
-                'trendDirection' => $transactionTrend['direction'],
-                'subtitle' => __('All successful operations'),
-            ],
-        ];
 
-        $periodStart = Carbon::now()->startOfMonth();
-        $periodEnd = Carbon::now()->endOfMonth();
-        $days = [];
-        $cursor = $periodStart->copy();
-        while ($cursor->lte($periodEnd)) {
-            $days[] = $cursor->format('Y-m-d');
-            $cursor->addDay();
+
+              // Monthley money Out
+              $money_pending = Transaction::auth()->where('type', PaymentGatewayConst::TYPEMONEYOUT)
+                                        ->whereDate('created_at',$start_date)
+                                        ->where('status', 2)
+                                        ->count();
+            $money_success = Transaction::auth()->where('type', PaymentGatewayConst::TYPEMONEYOUT)
+                                ->whereDate('created_at',$start_date)
+                                ->where('status', 1)
+                                ->count();
+            $money_canceled = Transaction::auth()->where('type', PaymentGatewayConst::TYPEMONEYOUT)
+                                ->whereDate('created_at',$start_date)
+                                ->where('status', 4)
+                                ->count();
+            $money_hold = Transaction::auth()->where('type', PaymentGatewayConst::TYPEMONEYOUT)
+                            ->whereDate('created_at',$start_date)
+                            ->where('status', 3)
+                            ->count();
+            $Money_out_pending_data[]  = $money_pending;
+            $Money_out_success_data[]  = $money_success;
+            $Money_out_canceled_data[] = $money_canceled;
+            $Money_out_hold_data[]     = $money_hold;
+
+            $month_day[] = date('Y-m-d', $start);
+            $start = strtotime('+1 day',$start);
         }
         $dayIndex = array_flip($days);
         $statusKeys = [
@@ -375,7 +376,8 @@ class DashboardController extends Controller
             'locale' => app()->getLocale(),
         ];
 
-        return view('user.dashboard', compact('page_title', 'dashboardPayload'));
+         //
+        return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData','recommendation'));
     }
 
     public function logout(Request $request) {
