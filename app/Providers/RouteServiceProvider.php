@@ -30,7 +30,7 @@ class RouteServiceProvider extends ServiceProvider
         $this->configureRateLimiting();
 
         $this->routes(function () {
-            Route::middleware(['system.maintenance.api','api.version','api'])
+            Route::middleware(['system.maintenance.api','api'])
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
 

@@ -16,6 +16,8 @@ class DeviceFingerprintService
             'authenticatable_type' => $authenticatable::class,
             'authenticatable_id' => $authenticatable->getKey(),
             'fingerprint' => $fingerprint,
+            'authenticatable_type' => $authenticatable::class,
+            'authenticatable_id' => $authenticatable->getKey(),
         ]);
 
         $record->fill([
