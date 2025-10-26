@@ -1,0 +1,8 @@
+{
+    "weights": {
+        "recent_volatility": 0.6,
+        "liquidity_index": -0.3,
+        "macro_risk_score": 0.9
+    },
+    "bias": 0.02
+}

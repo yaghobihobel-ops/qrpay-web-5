@@ -30,6 +30,12 @@
                     'icon'      => "menu-icon las la-rocket",
                 ])
 
+                @include('admin.components.side-nav.link',[
+                    'route'     => 'admin.documentation.index',
+                    'title'     => 'Development Guide',
+                    'icon'      => 'menu-icon las la-book',
+                ])
+
                 {{-- Section Default --}}
                 @include('admin.components.side-nav.link-group',[
                     'group_title'       => __("DEFAULT"),
@@ -50,6 +56,11 @@
                             'icon'      => "menu-icon las la-hand-holding-usd",
                         ],
                         [
+                            'title'     => __('Pricing Rules'),
+                            'route'     => 'admin.pricing-rules.index',
+                            'icon'      => 'menu-icon las la-percent',
+                        ],
+                        [
                             'title'     => "Virtual Card Api",
                             'route'     => "admin.virtual.card.api",
                             'icon'      => "menu-icon las la-wallet",
@@ -63,6 +74,16 @@
                             'title'     => __("Gift Card Api"),
                             'route'     => "admin.gift.card.index",
                             'icon'      => "menu-icon las la-gift",
+                        ],
+                        [
+                            'title'     => __("Help Center Analytics"),
+                            'route'     => "admin.help-center.analytics",
+                            'icon'      => "menu-icon las la-chalkboard-teacher",
+                        ],
+                        [
+                            'title'     => __("Support Analytics"),
+                            'route'     => "admin.support.analytics",
+                            'icon'      => "menu-icon las la-headset",
                         ],
                     ]
                 ])
