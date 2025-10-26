@@ -3,16 +3,18 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Audit\AuditLogger;
 use App\Traits\Audit\LogsAudit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ServiceProvider;
 
 ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
@@ -24,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
      * Register any application services.
      *
      * @return void
-     */
+    */
     public function register()
     {
         $this->app->singleton(AuditLogger::class, function ($app) {

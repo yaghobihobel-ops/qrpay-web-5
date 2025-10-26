@@ -3,12 +3,13 @@
 namespace App\Console\Commands;
 
 use App\Constants\GlobalConst;
-use App\Http\Helpers\CurrencyLayer;
-use App\Models\Admin\Currency;
 use App\Models\Admin\ExchangeRate;
 use App\Models\Admin\PaymentGatewayCurrency;
 use App\Models\LiveExchangeRateApiSetting;
+use App\Models\ExchangeRateLog;
+use App\Services\Exchange\ExchangeRateProviderInterface;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Exception;
 
 class UpdateCurrencyRates extends Command
@@ -16,7 +17,7 @@ class UpdateCurrencyRates extends Command
     protected $signature = 'currency:update';
     protected $description = 'Update currency rates using CurrencyLayer API';
 
-    public function __construct()
+    public function __construct(protected ExchangeRateProviderInterface $exchangeRateProvider)
     {
         parent::__construct();
     }
@@ -24,14 +25,29 @@ class UpdateCurrencyRates extends Command
     public function handle()
     {
         try {
-            $api_rates = (new CurrencyLayer())->getLiveExchangeRates();
+            $response = $this->exchangeRateProvider->getLiveExchangeRates();
 
-            if (isset($api_rates) && $api_rates['status'] == false) {
-                info($api_rates['message'] ?? "Something went wrong! Please try again.");
+            ExchangeRateLog::create([
+                'provider' => $this->exchangeRateProvider->getIdentifier(),
+                'status' => $response['status'],
+                'from_cache' => $response['from_cache'] ?? false,
+                'message' => $response['message'] ?? null,
+                'payload' => $response['data'] ?? [],
+            ]);
+
+            if (isset($response) && $response['status'] == false) {
+                info($response['message'] ?? "Something went wrong! Please try again.");
                 return;
             }
 
-            $api_rates = $api_rates['data'];
+            $api_rates = $response['data'];
+
+            Cache::put(
+                config('exchange.cache.latest_rates_key', 'exchange:rates:latest'),
+                $api_rates,
+                now()->addSeconds((int) config('exchange.cache.ttl', 3600))
+            );
+
             $provider = LiveExchangeRateApiSetting::where('slug', GlobalConst::CURRENCY_LAYER)->first();
 
             // For Setup Currency Rate Update

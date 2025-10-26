@@ -2,6 +2,7 @@
 
 namespace App\Notifications\User\Withdraw;
 
+use App\Services\Notifications\LocalizedMessagingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -52,24 +53,45 @@ class WithdrawMail extends Notification
         $trx_id = $this->data->trx_id;
         $date = Carbon::now();
         $dateTime = $date->format('Y-m-d h:i:s A');
-        if($data->gateway_type == "MANUAL"){
-            $status = __("Pending");
-        }else{
-            $status = __("success");
-        }
-        return (new MailMessage)
+
+        $status = $data->gateway_type == "MANUAL" ? __("Pending") : __("success");
+
+        $messaging = app(LocalizedMessagingService::class);
+        $context = $messaging->resolveUserContext($user);
+        $amount = getAmount($data->amount, 2).' '.get_default_currency_code();
+
+        $emailCopy = $messaging->emailTemplate('withdraw.summary', [
+            'channel' => $data->gateway_name,
+            'amount' => $amount,
+            'country' => $context['country'] ?? __('messaging.labels.scenario_playbook'),
+            'reference' => $trx_id,
+        ], $context, [
+            'subject' => __("Withdraw Money Via")." ". $data->gateway_name.' ('.$data->gateway_type.' )',
+        ]);
+
+        $mail = (new MailMessage)
                     ->greeting(__("Hello")." ".$user->fullname." !")
-                    ->subject(__("Withdraw Money Via")." ". $data->gateway_name.' ('.$data->gateway_type.' )')
-                    ->line(__("Withdraw Send Email Heading")." ".$data->gateway_name." ,".__("details of withdraw money").":")
-                    ->line(__("web_trx_id").": " .$trx_id)
-                    ->line(__("request Amount").": " . getAmount($data->amount,2).' '.get_default_currency_code())
-                    ->line(__("Exchange Rate").": " ." 1 ". get_default_currency_code().' = '. getAmount($data->gateway_rate,2).' '.$data->gateway_currency)
-                    ->line(__("Fees & Charges").": " . getAmount($data->gateway_charge,2).' '.$data->gateway_currency)
-                    ->line(__("Will Get").": " .  get_amount($data->will_get,$data->gateway_currency,2))
-                    ->line(__("Total Payable Amount").": " . get_amount($data->payable,get_default_currency_code(),2))
-                    ->line(__("Status").": ". $status)
-                    ->line(__("Date And Time").": " .$dateTime)
-                    ->line(__('Thank you for using our application!'));
+                    ->subject($emailCopy['subject'])
+                    ->line(__("Withdraw Send Email Heading")." ".$data->gateway_name." ,".__("details of withdraw money").":");
+
+        if (!empty($emailCopy['intro'])) {
+            $mail->line($emailCopy['intro']);
+        }
+
+        $mail->line(__("web_trx_id").": " .$trx_id)
+            ->line(__("request Amount").": " . $amount)
+            ->line(__("Exchange Rate").": " ." 1 ". get_default_currency_code().' = '. getAmount($data->gateway_rate,2).' '.$data->gateway_currency)
+            ->line(__("Fees & Charges").": " . getAmount($data->gateway_charge,2).' '.$data->gateway_currency)
+            ->line(__("Will Get").": " .  get_amount($data->will_get,$data->gateway_currency,2))
+            ->line(__("Total Payable Amount").": " . get_amount($data->payable,get_default_currency_code(),2))
+            ->line(__("Status").": ". $status)
+            ->line(__("Date And Time").": " .$dateTime);
+
+        if (!empty($emailCopy['footer'])) {
+            $mail->line($emailCopy['footer']);
+        }
+
+        return $mail->line(__('Thank you for using our application!'));
     }
 
     /**

@@ -23,6 +23,7 @@ use App\Models\Merchants\MerchantWallet;
 use App\Notifications\Admin\ActivityNotification;
 use App\Notifications\User\Withdraw\WithdrawMail;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Payout\PayoutProviderInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
@@ -31,7 +32,8 @@ class MoneyOutController extends Controller
     use ControlDynamicInputFields;
 
     protected $basic_settings;
-    public function __construct()
+
+    public function __construct(protected PayoutProviderInterface $payoutProvider)
     {
         $this->basic_settings = BasicSettingsProvider::get();
     }
@@ -193,47 +195,23 @@ class MoneyOutController extends Controller
             'branch_code'       => $branch_status == true ? 'required':'nullable',
         ]);
 
-        $credentials = $gateway->credentials;
-        $secret_key = getPaymentCredentials($credentials,'Secret key');
-        $base_url = getPaymentCredentials($credentials,'Base Url');
-        $callback_url = url('/').'/flutterwave/withdraw_webhooks';
-
-        $ch = curl_init();
-        $url =  $base_url.'/transfers';
         $reference =  generateTransactionReference();
-        $data = [
-            "account_bank" => $request->bank_name,
-            "account_number" => $request->account_number,
-            "amount" => $moneyOutData->will_get,
-            "narration" => "Withdraw from wallet",
-            "currency" =>$moneyOutData->gateway_currency,
-            "reference" => $reference,
-            "callback_url" => $callback_url,
-            "debit_currency" => $moneyOutData->gateway_currency,
-            "beneficiary_name"  => $request->beneficiary_name??""
-        ];
-        if ($branch_status === true) {
-            $data['destination_branch_code'] = $request->branch_code;
-        }
+        $response = $this->payoutProvider->initiateTransfer($moneyOutData, $gateway, [
+            'bank_name' => $request->bank_name,
+            'account_number' => $request->account_number,
+            'beneficiary_name' => $request->beneficiary_name ?? "",
+            'currency' => $moneyOutData->gateway_currency,
+            'debit_currency' => $moneyOutData->gateway_currency,
+            'reference' => $reference,
+            'callback_url' => route('webhook.response'),
+            'destination_branch_code' => $branch_status === true ? $request->branch_code : null,
+        ]);
 
-        $headers = [
-            'Authorization: Bearer '.$secret_key,
-            'Content-Type: application/json'
-        ];
-
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-        $response = curl_exec($ch);
-
-        $result = json_decode($response,true);
-            if($result['status'] && $result['status'] == 'success'){
+        $result = $response->data();
+            if($response->isSuccessful()){
                 try{
                     $get_values =[
-                        'user_data' => $result['data'],
+                        'user_data' => $result['data'] ?? [],
                         'charges' => [],
                     ];
                     //send notifications
@@ -253,18 +231,16 @@ class MoneyOutController extends Controller
                     return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
                 }
 
-            }else if($result['status'] && $result['status'] == 'error'){
+            }else if(($result['status'] ?? null) && ($result['status'] ?? null) == 'error'){
                 if(isset($result['data'])){
-                    $errors = $result['message'].",".$result['data']['complete_message']??"";
+                    $errors = trim(($response->message() ?? '') .",".($result['data']['complete_message']??""), ',');
                 }else{
-                    $errors = $result['message'];
+                    $errors = $response->message() ?? __('Unable to complete payout request at the moment.');
                 }
                 return back()->with(['error' => [ $errors]]);
             }else{
-                return back()->with(['error' => [$result['message']]]);;
+                return back()->with(['error' => [$response->message() ?? __('Unable to complete payout request at the moment.')]]);;
             }
-
-        curl_close($ch);
 
     }else{
         return back()->with(['error' => [__("Invalid request,please try again later")]]);
@@ -275,7 +251,10 @@ class MoneyOutController extends Controller
    public function checkBanks(Request $request){
         $bank_account = $request->account_number;
         $bank_code = $request->bank_code;
-        $exist['data'] = checkBankAccount($bank_account,$bank_code);
+        $gateway = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
+        $exist['data'] = $this->payoutProvider->verifyBankAccount($bank_account,$bank_code,[
+            'gateway' => $gateway,
+        ]);
         return response( $exist);
    }
    //Get flutterwave banks branches

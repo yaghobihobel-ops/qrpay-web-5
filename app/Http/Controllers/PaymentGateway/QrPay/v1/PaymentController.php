@@ -7,7 +7,7 @@ use App\Models\UserWallet;
 use App\Traits\Transaction;
 use Illuminate\Http\Request;
 use App\Constants\GlobalConst;
-use App\Http\Helpers\Response;
+use App\Enums\ApiErrorCode;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
@@ -15,13 +15,13 @@ use App\Constants\PaymentGatewayConst;
 use App\Models\Merchants\SandboxWallet;
 use App\Models\Merchants\MerchantWallet;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Admin\MerchantConfiguration;
 use App\Models\Merchants\GatewaySetting;
 use App\Models\Merchants\PaymentOrderRequest;
 use App\Models\StripeVirtualCard;
 use App\Models\SudoVirtualCard;
 use App\Models\VirtualCard;
 use App\Notifications\PaymentGateway\PaymentVerification;
+use App\Services\View\QrPayGatewayViewModelService;
 use Stripe\Charge;
 use Stripe\Stripe as StripePackage;
 use Stripe\Token;
@@ -37,12 +37,33 @@ class PaymentController extends Controller
     protected $testuser_email = "sandbox@appdevs.net";
     protected $testuser_username = "appdevs";
 
+    protected QrPayGatewayViewModelService $viewModelService;
+
+    public function __construct(QrPayGatewayViewModelService $viewModelService)
+    {
+        $this->viewModelService = $viewModelService;
+    }
+
     public function paymentCreate(Request $request) {
         $access_token = $request->bearerToken();
-        if(!$access_token) return Response::paymentApiError([__('Access denied! Token not found')],[],403);
+        if(!$access_token) {
+            return response()->error(
+                __('Access denied! Token not found'),
+                ApiErrorCode::ACCESS_TOKEN_MISSING,
+                null,
+                403
+            );
+        }
 
         $request_record = PaymentOrderRequest::where('access_token',$access_token)->first();
-        if(!$request_record) return Response::paymentApiError([__('Requested with invalid token!')],[],403);
+        if(!$request_record) {
+            return response()->error(
+                __('Requested with invalid token!'),
+                ApiErrorCode::ACCESS_TOKEN_INVALID,
+                null,
+                403
+            );
+        }
 
         if(Carbon::now() > $request_record->created_at->addSeconds($this->access_token_expire_time)) {
             try{
@@ -50,13 +71,32 @@ class PaymentController extends Controller
                     'status'    => PaymentGatewayConst::EXPIRED,
                 ]);
             }catch(Exception $e) {
-                return Response::paymentApiError([__("Failed to create payment! Please try again")],[],500);
+                return response()->error(
+                    __('Failed to create payment! Please try again'),
+                    ApiErrorCode::PAYMENT_CREATION_FAILED,
+                    null,
+                    500
+                );
             }
         }
 
-        if($request_record->status == PaymentGatewayConst::EXPIRED) return Response::paymentApiError([__('Request token is expired')],[],401);
+        if($request_record->status == PaymentGatewayConst::EXPIRED) {
+            return response()->error(
+                __('Request token is expired'),
+                ApiErrorCode::ACCESS_TOKEN_EXPIRED,
+                null,
+                401
+            );
+        }
 
-        if($request_record->status != PaymentGatewayConst::CREATED) return Response::paymentApiError([__('Requested with invalid token!')],[],400);
+        if($request_record->status != PaymentGatewayConst::CREATED) {
+            return response()->error(
+                __('Requested with invalid token!'),
+                ApiErrorCode::ACCESS_TOKEN_INVALID,
+                null,
+                400
+            );
+        }
 
         $validator = Validator::make($request->all(),[
             'custom'        => 'nullable|string|max:255',
@@ -66,21 +106,49 @@ class PaymentController extends Controller
             'cancel_url'    => 'required|string|url',
         ]);
 
-        if($validator->fails()) return Response::paymentApiError($validator->errors()->all(),[],400);
+        if($validator->fails()) {
+            return response()->error(
+                __('The given data was invalid.'),
+                ApiErrorCode::VALIDATION_ERROR,
+                ['errors' => $validator->errors()->all()],
+                422
+            );
+        }
         $validated = $validator->validate();
 
         $merchant = $request_record->merchant;
         $developer_credentials = $merchant->developerApi;
 
-        if(!$merchant || !$developer_credentials) return Response::paymentApiError([__("Merchant does't exists")]);
+        if(!$merchant || !$developer_credentials) {
+            return response()->error(
+                __("Merchant does't exists"),
+                ApiErrorCode::MERCHANT_NOT_FOUND,
+                null,
+                404
+            );
+        }
 
         // check request URL is sandbox or production
         if(request()->is("*/sandbox/*")) {
             // Requested with sandbox URL
-            if($developer_credentials->mode != PaymentGatewayConst::ENV_SANDBOX) return Response::paymentApiError([__("Requested with invalid credentials")]);
+            if($developer_credentials->mode != PaymentGatewayConst::ENV_SANDBOX) {
+                return response()->error(
+                    __('Requested with invalid credentials'),
+                    ApiErrorCode::INVALID_CREDENTIALS,
+                    null,
+                    403
+                );
+            }
             $payment_url = route('qrpay.pay.sandbox.v1.user.auth.form',$request_record->token);
         }else {
-            if($developer_credentials->mode != PaymentGatewayConst::ENV_PRODUCTION) return Response::paymentApiError([__("Requested with invalid credentials")]);
+            if($developer_credentials->mode != PaymentGatewayConst::ENV_PRODUCTION) {
+                return response()->error(
+                    __('Requested with invalid credentials'),
+                    ApiErrorCode::INVALID_CREDENTIALS,
+                    null,
+                    403
+                );
+            }
             $payment_url = route('qrpay.pay.v1.user.auth.form',$request_record->token);
         }
 
@@ -97,14 +165,23 @@ class PaymentController extends Controller
             ]);
         }catch(Exception $e) {
 
-            return Response::paymentApiError([__("Failed to create payment! Please try again")],[],500);
+            return response()->error(
+                __('Failed to create payment! Please try again'),
+                ApiErrorCode::PAYMENT_CREATION_FAILED,
+                null,
+                500
+            );
         }
 
 
-        return Response::paymentApiSuccess([$request_record->status],[
-            'token'         => $request_record->token,
-            'payment_url'   => $payment_url,
-        ],200);
+        return response()->success(
+            __('Payment request created successfully.'),
+            [
+                'status' => $request_record->status,
+                'token' => $request_record->token,
+                'payment_url' => $payment_url,
+            ]
+        );
 
     }
 
@@ -124,7 +201,7 @@ class PaymentController extends Controller
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
 
-        $merchant_configuration = MerchantConfiguration::first();
+        $merchant_configuration = $this->viewModelService->getMerchantConfiguration();
         if(!$merchant_configuration) {
             $page_title = "Process Error";
             $data = [
@@ -136,7 +213,7 @@ class PaymentController extends Controller
             ];
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
-        $payment_gateway_image = get_image($merchant_configuration->image,'merchant-config');
+        $payment_gateway_image = $this->viewModelService->getPaymentGatewayImage($merchant_configuration);
 
         if($request_record->authentication != true) {
             $page_title = "Process Error";
@@ -301,7 +378,7 @@ class PaymentController extends Controller
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
 
-        $merchant_configuration = MerchantConfiguration::first();
+        $merchant_configuration = $this->viewModelService->getMerchantConfiguration();
         if(!$merchant_configuration) {
             $page_title = "Process Error";
             $data = [
@@ -313,7 +390,7 @@ class PaymentController extends Controller
             ];
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
-        $payment_gateway_image = get_image($merchant_configuration->image,'merchant-config');
+        $payment_gateway_image = $this->viewModelService->getPaymentGatewayImage($merchant_configuration);
 
         if($request_record->authentication != true) {
             $page_title = "Process Error";
