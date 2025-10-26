@@ -4,10 +4,12 @@ namespace App\Http\Helpers;
 
 use App\Constants\GlobalConst;
 use App\Models\Admin\ReloadlyApi;
+use App\Services\Monitoring\DomainInstrumentation;
 use Exception;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 class UtilityHelper{
 
@@ -25,6 +27,10 @@ class UtilityHelper{
      * store configuration
      */
     protected array $config;
+
+    protected DomainInstrumentation $instrumentation;
+
+    protected string $domain = 'payment';
 
     /**
      * Get Billers Cache KEY
@@ -48,8 +54,9 @@ class UtilityHelper{
         "RANGE" => "RANGE",
     ];
 
-    public function __construct()
+    public function __construct(?DomainInstrumentation $instrumentation = null)
     {
+        $this->instrumentation = $instrumentation ?: app(DomainInstrumentation::class);
         $this->api = ReloadlyApi::reloadly()->utilityPayment()->first();
         $this->setConfig();
         $this->accessToken();
@@ -148,14 +155,39 @@ class UtilityHelper{
         $base_url = $this->config['request_url'];
 
         $request_endpoint = $base_url . "/billers";
-        $response = Http::withHeaders([
-            'Authorization' => "Bearer " . $access_token,
-            "Accept: application/com.reloadly.utilities-v1+json",
-        ])->get($request_endpoint)->throw(function(Response $response, RequestException $exception) {
-            throw new Exception($exception->getMessage());
-        })->json();
+        $config = config($this->domain, []);
+        $context = $this->instrumentation->startOperation($this->domain, 'fetch_billers', $config, [
+            'provider' => $this->api->provider ?? data_get($config, 'credentials.provider', 'unknown'),
+        ]);
 
-        if(!is_array($response)) throw new Exception(__("Something went wrong! Please try again."));
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer " . $access_token,
+                "Accept: application/com.reloadly.utilities-v1+json",
+            ])->get($request_endpoint)->throw(function(Response $response, RequestException $exception) {
+                throw new Exception($exception->getMessage());
+            })->json();
+        } catch (RequestException $exception) {
+            $error_response = $exception->response?->json() ?? [];
+            $data = [
+                'status' => false,
+                'message' => $error_response['message'] ?? $exception->getMessage(),
+                'errorCode' => $error_response['errorCode'] ?? null,
+            ];
+            $this->instrumentation->recordFailure($context, $exception, $data);
+            return $data;
+        } catch (Throwable $exception) {
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+
+        if(!is_array($response)) {
+            $exception = new Exception(__("Something went wrong! Please try again."));
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+
+        $this->instrumentation->recordSuccess($context, ['billers' => is_countable($response) ? count($response) : null]);
 
         // cache()->driver('file')->put($biller_cache_key, $response, 43200);
 
@@ -170,13 +202,37 @@ class UtilityHelper{
         $access_token = $this->access_token;
         $base_url = $this->config['request_url'];
         $request_endpoint = $base_url . "/billers?id=".$id;
-        $response = Http::withHeaders([
-            'Authorization' => "Bearer " . $access_token,
-            "Accept: application/com.reloadly.utilities-v1+json",
-        ])->get($request_endpoint)->throw(function(Response $response, RequestException $exception) {
-            throw new Exception($exception->getMessage());
-        })->json();
-        if(!is_array($response)) throw new Exception(__("Something went wrong! Please try again."));
+        $config = config($this->domain, []);
+        $context = $this->instrumentation->startOperation($this->domain, 'fetch_biller', $config, [
+            'provider' => $this->api->provider ?? data_get($config, 'credentials.provider', 'unknown'),
+            'biller_id' => $id,
+        ]);
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer " . $access_token,
+                "Accept: application/com.reloadly.utilities-v1+json",
+            ])->get($request_endpoint)->throw(function(Response $response, RequestException $exception) {
+                throw new Exception($exception->getMessage());
+            })->json();
+        } catch (RequestException $exception) {
+            $error_response = $exception->response?->json() ?? [];
+            $data = [
+                'status' => false,
+                'message' => $error_response['message'] ?? $exception->getMessage(),
+                'errorCode' => $error_response['errorCode'] ?? null,
+            ];
+            $this->instrumentation->recordFailure($context, $exception, $data);
+            return $data;
+        } catch (Throwable $exception) {
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+        if(!is_array($response)) {
+            $exception = new Exception(__("Something went wrong! Please try again."));
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+        $this->instrumentation->recordSuccess($context, ['biller_id' => data_get($response, '0.id')]);
         return $response;
     }
     /**
@@ -188,6 +244,12 @@ class UtilityHelper{
 
         $base_url = $this->config['request_url'];
         $endpoint = $base_url . "/pay";
+        $config = config($this->domain, []);
+        $context = $this->instrumentation->startOperation($this->domain, 'pay_utility_bill', $config, [
+            'provider' => $this->api->provider ?? data_get($config, 'credentials.provider', 'unknown'),
+            'amount' => data_get($data, 'amount'),
+            'biller_id' => data_get($data, 'billerId'),
+        ]);
 
         try{
             $response = Http::withHeaders([
@@ -199,14 +261,24 @@ class UtilityHelper{
                 throw new Exception($message);
             })->json();
         }catch(Exception $e){
-            $data =[
+            $payload =[
                 'status' =>false,
                 'message' => $e->getMessage()
             ];
-            return $data;
+            $this->instrumentation->recordFailure($context, $e, $payload);
+            return $payload;
         }
 
-        if(!is_array($response)) throw new Exception(__("Something went wrong! Please try again."));
+        if(!is_array($response)) {
+            $exception = new Exception(__("Something went wrong! Please try again."));
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+
+        $this->instrumentation->recordSuccess($context, [
+            'transaction_id' => $response['transactionId'] ?? null,
+            'status' => $response['status'] ?? null,
+        ]);
 
         return $response;
     }
@@ -219,6 +291,11 @@ class UtilityHelper{
         $access_token = $this->access_token;
         $base_url = $this->config['request_url'];
         $request_endpoint = $base_url . "/transactions"."/".$id;
+        $config = config($this->domain, []);
+        $context = $this->instrumentation->startOperation($this->domain, 'fetch_payment_transaction', $config, [
+            'provider' => $this->api->provider ?? data_get($config, 'credentials.provider', 'unknown'),
+            'transaction_id' => $id,
+        ]);
         try{
             $response = Http::withHeaders([
                 'Authorization' => "Bearer " . $access_token,
@@ -231,9 +308,15 @@ class UtilityHelper{
                 'status' =>false,
                 'message' => $e->getMessage()
             ];
+            $this->instrumentation->recordFailure($context, $e, $data);
             return $data;
         }
-        if(!is_array($response)) throw new Exception(__("Something went wrong! Please try again."));
+        if(!is_array($response)) {
+            $exception = new Exception(__("Something went wrong! Please try again."));
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+        $this->instrumentation->recordSuccess($context, ['status' => $response['status'] ?? null]);
         return $response;
     }
 }

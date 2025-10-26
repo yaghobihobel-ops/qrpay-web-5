@@ -7,6 +7,7 @@ use App\Models\Admin\AppSettings;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 class AppSettingsController extends Controller
@@ -61,6 +62,8 @@ class AppSettingsController extends Controller
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
 
+        Cache::forget('api.app_settings');
+
         return back()->with(['success' => [__("Splash screen updated successfully!")]]);
 
     }
@@ -94,6 +97,8 @@ class AppSettingsController extends Controller
         }catch(Exception $e) {
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
+
+        Cache::forget('api.app_settings');
 
         return back()->with(['success' => [__("URL settings updated successfully!")]]);
     }

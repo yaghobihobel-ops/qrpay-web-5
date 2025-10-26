@@ -18,7 +18,6 @@ use App\Models\GiftCard;
 use App\Models\UserNotification;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Password;
 use App\Providers\Admin\BasicSettingsProvider;
 use App\Traits\AdminNotifications\AuthNotifications;
 
@@ -481,10 +480,7 @@ class UserController extends Controller
     }
     public function passwordUpdate(Request $request) {
         $basic_settings = BasicSettingsProvider::get();
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->secure_password) {
-            $passowrd_rule = ["required",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised(),"confirmed"];
-        }
+        $passowrd_rule = security_password_rules();
         $validator = Validator::make($request->all(), [
             'current_password'      => "required|string",
             'password'              => $passowrd_rule,

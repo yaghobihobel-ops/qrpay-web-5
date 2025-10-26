@@ -16,15 +16,17 @@ use Illuminate\Support\Facades\Auth;
 use App\Traits\Agent\LoggedInUsers;
 use Exception;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rules\Password;
 use App\Traits\Agent\RegisteredUsers;
 use App\Traits\ControlDynamicInputFields;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use App\Traits\AdminNotifications\AuthNotifications;
+use App\Services\Security\DeviceFingerprintService;
+use App\Traits\Security\LogsSecurityEvents;
+use Illuminate\Support\Facades\RateLimiter;
 
 class LoginController extends Controller
 {
-    use  AuthenticatesUsers, LoggedInUsers ,RegisteredUsers,ControlDynamicInputFields,AuthNotifications;
+    use  AuthenticatesUsers, LoggedInUsers ,RegisteredUsers,ControlDynamicInputFields,AuthNotifications, LogsSecurityEvents;
     protected $basic_settings;
 
     public function __construct()
@@ -38,42 +40,91 @@ class LoginController extends Controller
         ]);
 
         if($validator->fails()){
+            $this->logSecurityWarning('api_agent_login_validation_failed', [
+                'identifier' => (string) $request->input('email'),
+                'errors' => $validator->errors()->all(),
+                'context' => 'agent_api',
+                'ip' => $request->ip(),
+            ]);
             $error =  ['error'=>$validator->errors()->all()];
             return ApiHelpers::validation($error);
         }
         $user = Agent::where('email',$request->email)->first();
+        $throttleKey = $this->loginThrottleKey($request);
         if(!$user){
+            RateLimiter::hit($throttleKey);
+            $attempts = RateLimiter::attempts($throttleKey);
+            $this->logSecurityWarning('api_agent_login_failed', [
+                'identifier' => $request->email,
+                'reason' => 'agent_not_found',
+                'attempts' => $attempts,
+                'context' => 'agent_api',
+                'ip' => $request->ip(),
+            ]);
+            $this->notifyLoginThresholdExceeded($request, $request->email, $attempts, [
+                'context' => 'agent_api',
+            ]);
             $error = ['error'=>[__("Agent doesn't exists.")]];
             return ApiHelpers::validation($error);
         }
         if (Hash::check($request->password, $user->password)) {
             if($user->status == 0){
+                $this->logSecurityWarning('api_agent_login_blocked', [
+                    'agent_id' => $user->id,
+                    'identifier' => $request->email,
+                    'reason' => 'account_suspended',
+                    'context' => 'agent_api',
+                    'ip' => $request->ip(),
+                ]);
                 $error = ['error'=>[__('Account Has been Suspended')]];
                 return ApiHelpers::validation($error);
             }
             $user->two_factor_verified = false;
             $user->save();
             $this->refreshUserWallets($user);
-            $this->createLoginLog($user);
+            $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+            $this->createLoginLog($user, $fingerprint);
             $this->createQr($user);
             $token = $user->createToken('agent_token')->accessToken;
+            RateLimiter::clear($throttleKey);
+            $this->logSecurityInfo('api_agent_login_success', [
+                'agent_id' => $user->id,
+                'identifier' => $request->email,
+                'token_created' => true,
+                'context' => 'agent_api',
+                'ip' => $request->ip(),
+            ]);
             $data = ['token' => $token, 'agent' => $user, ];
             $message =  ['success'=>[__('Login Successful')]];
             return ApiHelpers::success($data,$message);
 
         } else {
+            RateLimiter::hit($throttleKey);
+            $attempts = RateLimiter::attempts($throttleKey);
+            $this->logSecurityWarning('api_agent_login_failed', [
+                'identifier' => $request->email,
+                'reason' => 'invalid_password',
+                'attempts' => $attempts,
+                'context' => 'agent_api',
+                'ip' => $request->ip(),
+            ]);
+            $this->notifyLoginThresholdExceeded($request, $request->email, $attempts, [
+                'context' => 'agent_api',
+            ]);
             $error = ['error'=>[__('Incorrect Password')]];
             return ApiHelpers::error($error);
         }
 
     }
 
+    protected function loginThrottleKey(Request $request): string
+    {
+        return sprintf('api_agent_login|%s|%s', strtolower((string) $request->input('email')), $request->ip());
+    }
+
     public function register(Request $request){
         $basic_settings = $this->basic_settings;
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->agent_secure_password) {
-            $passowrd_rule = ["required","confirmed",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised()];
-        }
+        $passowrd_rule = security_password_rules();
         if( $basic_settings->agent_agree_policy){
             $agree ='required';
         }else{
