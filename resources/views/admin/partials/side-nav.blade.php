@@ -31,9 +31,11 @@
                 ])
 
                 @include('admin.components.side-nav.link',[
-                    'route'     => 'admin.documentation.index',
-                    'title'     => 'Development Guide',
-                    'icon'      => 'menu-icon las la-book',
+                    'route'     => 'admin.api.guide',
+                    'title'     => __("API Guide"),
+                    'icon'      => "menu-icon las la-book",
+                    'dusk'      => 'sidebar-api-guide',
+                    'check_permission' => false,
                 ])
 
                 {{-- Section Default --}}
