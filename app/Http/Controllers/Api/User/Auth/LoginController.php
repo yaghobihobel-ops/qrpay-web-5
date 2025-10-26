@@ -49,13 +49,11 @@ class LoginController extends Controller
 
         $user = User::where('email',$request->email)->first();
         if(!$user){
-            $this->incrementLoginAttempts($request);
             $error = ['error'=>[__("User doesn't exists.")]];
             return ApiHelpers::validation($error);
         }
         if (Hash::check($request->password, $user->password)) {
             if($user->status == 0){
-                $this->incrementLoginAttempts($request);
                 $error = ['error'=>[__('Account Has been Suspended')]];
                 return ApiHelpers::validation($error);
             }
@@ -74,7 +72,6 @@ class LoginController extends Controller
             return ApiHelpers::success($data,$message);
 
         } else {
-            $this->incrementLoginAttempts($request);
             $error = ['error'=>[__('Incorrect Password')]];
             return ApiHelpers::error($error);
         }
@@ -93,11 +90,6 @@ class LoginController extends Controller
         $data = ['retry_after_seconds' => $seconds];
 
         return ApiHelpers::error($error, $data);
-    }
-
-    protected function incrementLoginAttempts(Request $request): void
-    {
-        RateLimiter::hit($this->throttleKey($request), $this->decaySeconds());
     }
 
     protected function clearLoginAttempts(Request $request): void
