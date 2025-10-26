@@ -13,13 +13,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use App\Traits\User\LoggedInUsers;
 use Exception;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rules\Password;
 use App\Traits\User\RegisteredUsers;
 use App\Traits\AdminNotifications\AuthNotifications;
 use App\Traits\ControlDynamicInputFields;
+use App\Services\Security\DeviceFingerprintService;
 
 class LoginController extends Controller
 {
@@ -41,6 +43,10 @@ class LoginController extends Controller
             return ApiHelpers::validation($error);
         }
 
+        if ($this->isRateLimited($request)) {
+            return $this->sendLockoutResponse($request);
+        }
+
         $user = User::where('email',$request->email)->first();
         if(!$user){
             $error = ['error'=>[__("User doesn't exists.")]];
@@ -54,9 +60,12 @@ class LoginController extends Controller
             $user->two_factor_verified = false;
             $user->save();
             $this->refreshUserWallets($user);
-            $this->createLoginLog($user);
+            $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+            $this->createLoginLog($user, $fingerprint);
             $this->createQr($user);
             $token = $user->createToken('user_token')->accessToken;
+
+            $this->clearLoginAttempts($request);
 
             $data = ['token' => $token, 'user' => $user, ];
             $message =  ['success'=>[__('Login Successful')]];
@@ -69,12 +78,43 @@ class LoginController extends Controller
 
     }
 
+    protected function isRateLimited(Request $request): bool
+    {
+        return RateLimiter::tooManyAttempts($this->throttleKey($request), $this->maxAttempts());
+    }
+
+    protected function sendLockoutResponse(Request $request)
+    {
+        $seconds = RateLimiter::availableIn($this->throttleKey($request));
+        $error = ['error' => [__('Too many login attempts. Please try again in :seconds seconds.', ['seconds' => $seconds])]];
+        $data = ['retry_after_seconds' => $seconds];
+
+        return ApiHelpers::error($error, $data);
+    }
+
+    protected function clearLoginAttempts(Request $request): void
+    {
+        RateLimiter::clear($this->throttleKey($request));
+    }
+
+    protected function throttleKey(Request $request): string
+    {
+        return Str::lower($request->input('email', '')) . '|' . $request->ip();
+    }
+
+    protected function maxAttempts(): int
+    {
+        return (int) config('auth.rate_limits.user_login.max_attempts', 5);
+    }
+
+    protected function decaySeconds(): int
+    {
+        return (int) config('auth.rate_limits.user_login.decay_seconds', 60);
+    }
+
     public function register(Request $request){
         $basic_settings = $this->basic_settings;
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->secure_password) {
-            $passowrd_rule = ["required","confirmed",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised()];
-        }
+        $passowrd_rule = security_password_rules();
         if( $basic_settings->agree_policy){
             $agree ='required';
         }else{

@@ -5,6 +5,7 @@ namespace App\Traits\Agent;
 use App\Models\Admin\Currency;
 use App\Models\AgentLoginLog;
 use App\Models\AgentWallet;
+use App\Models\DeviceFingerprint;
 use Exception;
 use Jenssegers\Agent\Agent;
 
@@ -32,7 +33,7 @@ trait LoggedInUsers {
         }
     }
 
-    protected function createLoginLog($user) {
+    protected function createLoginLog($user, ?DeviceFingerprint $fingerprint = null) {
         $client_ip = request()->ip() ?? false;
         $location = geoip()->getLocation($client_ip);
         $agent = new Agent();
@@ -53,6 +54,7 @@ trait LoggedInUsers {
             'timezone'      => $location['timezone'] ?? "",
             'browser'       => $agent->browser() ?? "",
             'os'            => $agent->platform() ?? "",
+            'device_fingerprint_id' => $fingerprint?->id,
         ];
 
         try{

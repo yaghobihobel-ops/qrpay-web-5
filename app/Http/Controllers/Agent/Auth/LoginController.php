@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Agent\Auth;
 use App\Constants\ExtensionConst;
 use App\Http\Controllers\Controller;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Security\DeviceFingerprintService;
+use App\Services\Security\SessionBindingService;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -128,12 +130,14 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user)
     {
+        $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+        app(SessionBindingService::class)->bind($request, $user, $fingerprint);
         $user->update([
             'two_factor_verified'   => false,
         ]);
         $user->createQr();
         $this->refreshUserWallets($user);
-        $this->createLoginLog($user);
+        $this->createLoginLog($user, $fingerprint);
         return redirect()->intended(route('agent.dashboard'));
     }
 }

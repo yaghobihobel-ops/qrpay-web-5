@@ -9,7 +9,6 @@ use App\Providers\Admin\BasicSettingsProvider;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Arr;
@@ -84,10 +83,7 @@ class ProfileController extends Controller
 
     public function passwordUpdate(Request $request) {
         $basic_settings = BasicSettingsProvider::get();
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->merchant_secure_password) {
-            $passowrd_rule = ["required",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised(),"confirmed"];
-        }
+        $passowrd_rule = security_password_rules();
         $request->validate([
             'current_password'      => "required|string",
             'password'              => $passowrd_rule,

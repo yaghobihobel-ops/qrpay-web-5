@@ -6,7 +6,7 @@ use App\Constants\GlobalConst;
 use App\Constants\NotificationConst;
 use App\Constants\PaymentGatewayConst;
 use App\Http\Controllers\Controller;
-use App\Http\Helpers\AirtimeHelper;
+use App\Contracts\TopupProviderInterface;
 use App\Http\Helpers\Api\Helpers;
 use App\Http\Helpers\NotificationHelper;
 use App\Models\Admin\ExchangeRate;
@@ -30,10 +30,12 @@ use App\Http\Helpers\PushNotificationHelper;
 class MobileTopupController extends Controller
 {
     protected $basic_settings;
+    protected TopupProviderInterface $topupProvider;
 
-    public function __construct()
+    public function __construct(TopupProviderInterface $topupProvider)
     {
         $this->basic_settings = BasicSettingsProvider::get();
+        $this->topupProvider = $topupProvider;
     }
 
     public function topUpInfo(){
@@ -288,7 +290,7 @@ class MobileTopupController extends Controller
         $mobile = remove_special_char($validated['mobile_number']);
         $phone = $mobile_code.$mobile;
         $iso = $validated['country_code'] ;
-        $operator = (new AirtimeHelper())->autoDetectOperator($phone,$iso);
+        $operator = $this->topupProvider->detectOperator($phone,$iso);
         if($operator['status'] === false){
             $data = [
                 'status' => false,
@@ -332,7 +334,7 @@ class MobileTopupController extends Controller
         }
         $sender_country_iso = $foundItem->iso2;
         $phone = remove_special_char($validated['mobile_code']).$validated['mobile_number'];
-        $operator = (new AirtimeHelper())->autoDetectOperator($phone,$validated['country_code']);
+        $operator = $this->topupProvider->detectOperator($phone,$validated['country_code']);
         if($operator['status'] === false){
             $error = ['error'=>[__($operator['message']??"")]];
             return Helpers::error($error);
@@ -388,7 +390,7 @@ class MobileTopupController extends Controller
 
         ];
 
-        $topUpData = (new AirtimeHelper())->makeTopUp($topUpData);
+        $topUpData = $this->topupProvider->makeTopUp($topUpData);
         if( isset($topUpData['status']) && $topUpData['status'] === false){
             $error = ['error'=>[__($topUpData['message'])]];
             return Helpers::error($error);

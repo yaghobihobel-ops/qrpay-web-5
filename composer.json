@@ -14,6 +14,7 @@
         "kingflamez/laravelrave": "dev-master",
         "laravel/framework": "^9.19",
         "laravel/helpers": "^1.6",
+        "laravel/horizon": "^5.0",
         "laravel/passport": "^10.4",
         "laravel/sanctum": "^3.0",
         "laravel/socialite": "^5.6",

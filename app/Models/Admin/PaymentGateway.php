@@ -3,6 +3,7 @@
 namespace App\Models\Admin;
 
 use App\Constants\PaymentGatewayConst;
+use App\Casts\EncryptedJson;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\PaymentGateway\Tatum;
@@ -25,7 +26,7 @@ class PaymentGateway extends Model
         'desc'                      => 'string',
         'input_fields'              => 'object',
         'supported_currencies'      => 'object',
-        'credentials'               => 'object',
+        'credentials'               => EncryptedJson::class,
         'status'                    => 'integer',
         'last_edit_by'              => 'integer',
         'crypto'                    => 'integer'
