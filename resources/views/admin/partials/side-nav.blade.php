@@ -75,6 +75,11 @@
                             'route'     => "admin.help-center.analytics",
                             'icon'      => "menu-icon las la-chalkboard-teacher",
                         ],
+                        [
+                            'title'     => __("Support Analytics"),
+                            'route'     => "admin.support.analytics",
+                            'icon'      => "menu-icon las la-headset",
+                        ],
                     ]
                 ])
                 {{-- manage Bill Pay & Mobile top Up Methods  --}}
