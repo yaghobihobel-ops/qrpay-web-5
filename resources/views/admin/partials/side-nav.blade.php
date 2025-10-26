@@ -56,6 +56,11 @@
                             'icon'      => "menu-icon las la-hand-holding-usd",
                         ],
                         [
+                            'title'     => __('Pricing Rules'),
+                            'route'     => 'admin.pricing-rules.index',
+                            'icon'      => 'menu-icon las la-percent',
+                        ],
+                        [
                             'title'     => "Virtual Card Api",
                             'route'     => "admin.virtual.card.api",
                             'icon'      => "menu-icon las la-wallet",
