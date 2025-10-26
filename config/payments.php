@@ -2,9 +2,9 @@
 
 return [
     'feature_flags' => [
-        'alipay' => env('FEATURE_PAYMENTS_ALIPAY', false),
-        'yoomonea' => env('FEATURE_PAYMENTS_YOOMONEA', false),
-        'sandbox' => env('FEATURE_PAYMENTS_SANDBOX', true),
+        'alipay' => filter_var(env('FEATURE_PAYMENTS_ALIPAY', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+        'yoomonea' => filter_var(env('FEATURE_PAYMENTS_YOOMONEA', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+        'sandbox' => filter_var(env('FEATURE_PAYMENTS_SANDBOX', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
     ],
 
     'providers' => [
@@ -43,7 +43,7 @@ return [
     ],
 
     'sandbox' => [
-        'allow_mock_signatures' => env('PAYMENTS_SANDBOX_ALLOW_SIGNATURES', true),
+        'allow_mock_signatures' => filter_var(env('PAYMENTS_SANDBOX_ALLOW_SIGNATURES', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
         'default_response_delay' => env('PAYMENTS_SANDBOX_DELAY_MS', 150),
     ],
 ];

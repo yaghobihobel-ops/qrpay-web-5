@@ -2,8 +2,8 @@
 
 return [
     'feature_flags' => [
-        'blubank' => env('FEATURE_PAYOUTS_BLUBANK', false),
-        'sandbox' => env('FEATURE_PAYOUTS_SANDBOX', true),
+        'blubank' => filter_var(env('FEATURE_PAYOUTS_BLUBANK', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+        'sandbox' => filter_var(env('FEATURE_PAYOUTS_SANDBOX', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
     ],
 
     'providers' => [
@@ -26,7 +26,7 @@ return [
     ],
 
     'sandbox' => [
-        'allow_mock_signatures' => env('PAYOUTS_SANDBOX_ALLOW_SIGNATURES', true),
+        'allow_mock_signatures' => filter_var(env('PAYOUTS_SANDBOX_ALLOW_SIGNATURES', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
         'default_response_delay' => env('PAYOUTS_SANDBOX_DELAY_MS', 200),
     ],
 ];
