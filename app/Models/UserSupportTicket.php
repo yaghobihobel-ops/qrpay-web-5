@@ -16,10 +16,17 @@ class UserSupportTicket extends Model
 
     protected $with = [
         'user',
-        'attachments'
+        'attachments',
+        'supportBotSession',
     ];
 
     protected $appends = ['type','stringStatus','imagePath'];
+
+    protected $casts = [
+        'first_response_at' => 'datetime',
+        'resolved_at' => 'datetime',
+        'satisfaction_score' => 'integer',
+    ];
 
     public function scopeAuthTickets($query) {
         $query->where("user_id",auth()->user()->id);
@@ -52,6 +59,11 @@ class UserSupportTicket extends Model
 
     public function attachments() {
         return $this->hasMany(UserSupportTicketAttachment::class);
+    }
+
+    public function supportBotSession()
+    {
+        return $this->belongsTo(SupportBotSession::class);
     }
 
     public function getTypeAttribute() {
