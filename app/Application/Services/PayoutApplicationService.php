@@ -18,6 +18,7 @@ use App\Models\Merchants\MerchantWallet;
 use App\Models\TemporaryData;
 use App\Models\Transaction;
 use App\Notifications\Admin\ActivityNotification;
+use App\Services\Edge\EdgeCacheRepository;
 use App\Notifications\User\Withdraw\WithdrawMail;
 use App\Providers\Admin\BasicSettingsProvider;
 use App\Traits\ControlDynamicInputFields;
@@ -474,8 +475,13 @@ class PayoutApplicationService
             'bank_info' => array_values($allBanks) ?? [],
         ];
         $message = ['success' => [__("All Bank Fetch Successfully")]];
+        $edgeCache = app(EdgeCacheRepository::class);
+        $identifier = strtoupper($country->iso2 ?? 'GLOBAL');
 
-        return ApplicationServiceResponse::success($data, $message);
+        return ApplicationServiceResponse::success($data, $message)
+            ->withResponse(function ($response) use ($edgeCache, $identifier) {
+                return $edgeCache->withEdgeHeaders($response, EdgeCacheRepository::SCOPE_BANKS, $identifier);
+            });
     }
 
     public function checkFlutterWaveBankAccount(Request $request): ApplicationServiceResponse

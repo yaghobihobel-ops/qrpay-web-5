@@ -48,6 +48,7 @@ use App\Models\UserSupportTicket;
 use App\Models\UserWallet;
 use App\Models\VirtualCard;
 use App\Models\VirtualCardApi;
+use App\Services\Edge\EdgeCacheRepository;
 use App\Services\Monitoring\DomainInstrumentation;
 use App\Notifications\Agent\Auth\SendAuthorizationCode as AgentAuthSendAuthorizationCode;
 use App\Notifications\Merchant\Auth\SendAuthorizationCode as AuthSendAuthorizationCode;
@@ -2092,47 +2093,52 @@ function module_access_merchant_api($key)
 }
 //flutterwave automatic withdrawal helper functions
 function getFlutterwaveBanks($iso2){
-    $instrumentation = app(DomainInstrumentation::class);
-    $config = config('withdrawal', []);
-    $provider = 'flutterwave';
-    $context = $instrumentation->startOperation('withdrawal', 'fetch_flutterwave_banks', $config, [
-        'provider' => $provider,
-        'country' => $iso2,
-    ]);
+    $edgeCache = app(EdgeCacheRepository::class);
+    $countryCode = $iso2 ? strtoupper($iso2) : 'GLOBAL';
 
-    $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
-    $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
-    $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-      CURLOPT_URL =>  $base_url.'/banks'.'/'.$iso2,
-      CURLOPT_RETURNTRANSFER => true,
-      CURLOPT_ENCODING => "",
-      CURLOPT_MAXREDIRS => 10,
-      CURLOPT_TIMEOUT => 30,
-      CURLOPT_FOLLOWLOCATION => true,
-      CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-      CURLOPT_CUSTOMREQUEST => "GET",
-      CURLOPT_HTTPHEADER => array(
-        "Authorization: Bearer ". $secretKey
-      ),
-    ));
+    return $edgeCache->rememberBanks($countryCode, function () use ($countryCode) {
+        $instrumentation = app(DomainInstrumentation::class);
+        $config = config('withdrawal', []);
+        $provider = 'flutterwave';
+        $context = $instrumentation->startOperation('withdrawal', 'fetch_flutterwave_banks', $config, [
+            'provider' => $provider,
+            'country' => $countryCode,
+        ]);
 
-    $response = curl_exec($curl);
-    if ($response === false) {
-        $error = curl_error($curl);
+        $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
+        $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
+        $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+          CURLOPT_URL =>  $base_url.'/banks'.'/'.$countryCode,
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => "",
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 30,
+          CURLOPT_FOLLOWLOCATION => true,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => "GET",
+          CURLOPT_HTTPHEADER => array(
+            "Authorization: Bearer ". $secretKey
+          ),
+        ));
+
+        $response = curl_exec($curl);
+        if ($response === false) {
+            $error = curl_error($curl);
+            curl_close($curl);
+            $exception = new \RuntimeException($error ?: 'Unable to fetch Flutterwave banks');
+            $instrumentation->recordFailure($context, $exception, ['curl_error' => $error]);
+            throw $exception;
+        }
         curl_close($curl);
-        $exception = new \RuntimeException($error ?: 'Unable to fetch Flutterwave banks');
-        $instrumentation->recordFailure($context, $exception, ['curl_error' => $error]);
-        throw $exception;
-    }
-    curl_close($curl);
-    $banks = json_decode($response,true);
+        $banks = json_decode($response,true);
 
-    $filtered = filterBanks($banks['data']??[]);
-    $instrumentation->recordSuccess($context, ['bank_count' => is_array($filtered) ? count($filtered) : 0]);
+        $filtered = filterBanks($banks['data']??[]);
+        $instrumentation->recordSuccess($context, ['bank_count' => is_array($filtered) ? count($filtered) : 0]);
 
-    return $filtered;
+        return $filtered;
+    });
 }
 
 function filterBanks($banks)

@@ -3,6 +3,7 @@
 namespace App\Http\Helpers;
 
 use App\Models\LiveExchangeRateApiSetting;
+use App\Services\Edge\EdgeCacheRepository;
 use Exception;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
@@ -54,92 +55,98 @@ class CurrencyLayer{
     public function getLiveExchangeRates()
     {
 
-        if(!$this->config) $this->setConfig();
+        $edgeCache = app(EdgeCacheRepository::class);
 
-        $access_key = $this->config['access_key'];
-        $admin_addition_rate = $this->config['multiply_by'] ?? 1;
-        $currencies = filterValidCurrencies(systemCurrenciesCode());
+        return $edgeCache->rememberRates('currency-layer-live', function () {
+            if(!$this->config) $this->setConfig();
 
-        $source = get_default_currency_code();
-        $url =  $this->config['request_url']."/live?access_key=$access_key&currencies=$currencies&format=1&source=$source";
+            $access_key = $this->config['access_key'];
+            $admin_addition_rate = $this->config['multiply_by'] ?? 1;
+            $currencies = filterValidCurrencies(systemCurrenciesCode());
 
-        //start curl request.
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            $source = get_default_currency_code();
+            $url =  $this->config['request_url']."/live?access_key=$access_key&currencies=$currencies&format=1&source=$source";
 
-        $response = curl_exec($ch);
-        $results = json_decode($response,true);
-        //handle data
-        if(isset($results) && isset($results['success']) && $results['success'] == true){
+            //start curl request.
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-            $quotes = $results['quotes'];
-            $formattedQuotes = [];
-            foreach ($quotes as $currency => $value) {
-                $formattedValue = get_amount(($value * $admin_addition_rate),null,12);
-                if (strpos($currency, $results['source']) === 0) {
-                    $currency = substr($currency, 3);
+            $response = curl_exec($ch);
+            $results = json_decode($response,true);
+            curl_close($ch);
+
+            //handle data
+            if(isset($results) && isset($results['success']) && $results['success'] == true){
+
+                $quotes = $results['quotes'];
+                $formattedQuotes = [];
+                foreach ($quotes as $currency => $value) {
+                    $formattedValue = get_amount(($value * $admin_addition_rate),null,12);
+                    if (strpos($currency, $results['source']) === 0) {
+                        $currency = substr($currency, 3);
+                    }
+                    $formattedQuotes[$currency] = $formattedValue;
                 }
-                $formattedQuotes[$currency] = $formattedValue;
-            }
-            $data = [
-                'status'    => true,
-                'message'   => "Successfully Get Exchange Rate",
-                'data'   => $formattedQuotes,
-            ];
+                $data = [
+                    'status'    => true,
+                    'message'   => "Successfully Get Exchange Rate",
+                    'data'   => $formattedQuotes,
+                ];
 
-        }else{
-            $data = [
-                'status'    => false,
-                'message'   => $results['error']['info']??'something went wrong in currency layer api',
-                'data'   => [],
-            ];
-        }
-        
-        return $data??[];
-        curl_close($ch);
+            }else{
+                $data = [
+                    'status'    => false,
+                    'message'   => $results['error']['info']??'something went wrong in currency layer api',
+                    'data'   => [],
+                ];
+            }
+
+            return $data??[];
+        });
     }
     public function apiCurrencyList()
     {
-        if(!$this->config) $this->setConfig();
+        $edgeCache = app(EdgeCacheRepository::class);
 
-        $access_key = $this->config['access_key'];
-        $url =  $this->config['request_url']."/list?access_key=$access_key";
+        return $edgeCache->rememberRates('currency-layer-currencies', function () {
+            if(!$this->config) $this->setConfig();
 
-        //start curl request.
-        $ch = curl_init();
+            $access_key = $this->config['access_key'];
+            $url =  $this->config['request_url']."/list?access_key=$access_key";
 
-        // Set the options for cURL
-        curl_setopt($ch, CURLOPT_URL, $url); // Set the URL
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return the result as a string
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Disable SSL certificate verification
+            //start curl request.
+            $ch = curl_init();
 
-        // Execute cURL request
-        $response = curl_exec($ch);
-        $results = json_decode($response,true);
+            // Set the options for cURL
+            curl_setopt($ch, CURLOPT_URL, $url); // Set the URL
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return the result as a string
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Disable SSL certificate verification
 
+            // Execute cURL request
+            $response = curl_exec($ch);
+            $results = json_decode($response,true);
+            curl_close($ch);
 
+            //handle data
+            if(isset($results) && isset($results['success']) && $results['success'] == true){
 
-        //handle data
-        if(isset($results) && isset($results['success']) && $results['success'] == true){
+                $data = [
+                    'status'    => true,
+                    'message'   => "Successfully Get All Currency List",
+                    'data'   => $results['currencies']??[],
+                ];
 
-            $data = [
-                'status'    => true,
-                'message'   => "Successfully Get All Currency List",
-                'data'   => $results['currencies']??[],
-            ];
+            }else{
+                $data = [
+                    'status'    => false,
+                    'message'   => 'something went wrong in currency layer api',
+                    'data'   => [],
+                ];
+            }
 
-        }else{
-            $data = [
-                'status'    => false,
-                'message'   => 'something went wrong in currency layer api',
-                'data'   => [],
-            ];
-        }
-        curl_close($ch);
-
-
-        return $data??[];
+            return $data??[];
+        });
     }
 
 }

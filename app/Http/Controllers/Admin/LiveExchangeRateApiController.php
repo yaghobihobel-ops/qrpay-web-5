@@ -10,12 +10,16 @@ use App\Models\Admin\Currency;
 use App\Models\Admin\ExchangeRate;
 use App\Models\Admin\PaymentGatewayCurrency;
 use App\Models\LiveExchangeRateApiSetting;
+use App\Services\Edge\CacheInvalidationCoordinator;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class LiveExchangeRateApiController extends Controller
 {
+    public function __construct(private CacheInvalidationCoordinator $cacheInvalidation)
+    {
+    }
      /**
      * Display a listing of the resource.
      *
@@ -89,6 +93,8 @@ class LiveExchangeRateApiController extends Controller
         }catch(Exception $e){
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
+        $this->cacheInvalidation->broadcastRates('currency-layer-live', ['trigger' => 'admin-update', 'provider' => $provider->slug]);
+
         return back()->with(['success' => [__("The Exchange Rate API Has Been Updated.")]]);
     }
 
@@ -128,6 +134,8 @@ class LiveExchangeRateApiController extends Controller
             $error = ['error' => [__("Something went wrong! Please try again.")]];
             return Response::error($error,null,500);
         }
+
+        $this->cacheInvalidation->broadcastRates('currency-layer-live', ['trigger' => 'status-update', 'provider' => $provider->slug]);
 
         $success = ['success' => [__("Provider status updated successfully!")]];
         return Response::success($success);
@@ -223,6 +231,7 @@ class LiveExchangeRateApiController extends Controller
                     }
                 }
             }
+            $this->cacheInvalidation->broadcastRates('currency-layer-live', ['trigger' => 'manual-sync']);
             return back()->with(['success' => [__("Currency Rate Updated By Currency Layer.")]]);
         }catch(Exception $e){
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);

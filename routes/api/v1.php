@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\User\StrowalletVirtualCardController;
 use App\Http\Helpers\Api\Helpers;
 use App\Models\Admin\SetupKyc;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Edge\EdgeCacheRepository;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 /*
@@ -56,18 +57,24 @@ Route::get('/clear-cache', function() {
     $message =  ['success'=>[__('Clear cache successfully')]];
     return Helpers::onlysuccess($message);
 });
-Route::get('get/basic/data', function() {
-    $basic_settings = BasicSettingsProvider::get();
-    $user_kyc = SetupKyc::userKyc()->first();
-    $data =[
-        'email_verification' => $basic_settings->email_verification,
-        'kyc_verification' => $basic_settings->kyc_verification,
-        'mobile_code' => getDialCode(),
-        'register_kyc_fields' =>$user_kyc,
-        'countries' => freedom_countries(GlobalConst::USER)
-    ];
+Route::get('get/basic/data', function(EdgeCacheRepository $edgeCache) {
+    $payload = $edgeCache->rememberSettings('basic-data', function () {
+        $basic_settings = BasicSettingsProvider::get();
+        $user_kyc = SetupKyc::userKyc()->first();
+
+        return [
+            'email_verification' => $basic_settings->email_verification,
+            'kyc_verification' => $basic_settings->kyc_verification,
+            'mobile_code' => getDialCode(),
+            'register_kyc_fields' => $user_kyc,
+            'countries' => freedom_countries(GlobalConst::USER)
+        ];
+    });
+
     $message =  ['success'=>[__('Basic information fetch successfully')]];
-    return Helpers::success($data,$message);
+    $response = Helpers::success($payload,$message);
+
+    return $edgeCache->withEdgeHeaders($response, EdgeCacheRepository::SCOPE_SETTINGS, 'basic-data');
 });
 Route::controller(AppSettingsController::class)->prefix("app-settings")->group(function(){
     Route::get('/','appSettings');
