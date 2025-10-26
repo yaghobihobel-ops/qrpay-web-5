@@ -4,6 +4,7 @@ namespace App\Services\Orchestration\DTO;
 
 use App\Models\PaymentRoute;
 use App\Services\Orchestration\Contracts\PaymentProviderAdapterInterface;
+use App\Services\Pricing\FeeQuote;
 
 class PaymentRouteResult
 {
@@ -11,7 +12,8 @@ class PaymentRouteResult
         protected PaymentProviderAdapterInterface $provider,
         protected PaymentRoute $route,
         protected array $sla,
-        protected array $kpi
+        protected array $kpi,
+        protected ?FeeQuote $feeQuote = null
     ) {
     }
 
@@ -33,5 +35,10 @@ class PaymentRouteResult
     public function getKpi(): array
     {
         return $this->kpi;
+    }
+
+    public function getFeeQuote(): ?FeeQuote
+    {
+        return $this->feeQuote;
     }
 }

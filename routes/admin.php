@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\NewsletterController;
 use App\Http\Controllers\Admin\PaymentGatewayCurrencyController;
 use App\Http\Controllers\Admin\PaymentGatewaysController;
 use App\Http\Controllers\Admin\PaymentLinkController;
+use App\Http\Controllers\Admin\PricingRuleController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ProfitLogsController;
 use App\Http\Controllers\Admin\PushNotificationController;
@@ -117,6 +118,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('index', 'index')->name('index');
         Route::put('charges/update', 'trxChargeUpdate')->name('charges.update');
     });
+    Route::resource('pricing-rules', PricingRuleController::class)->except(['show']);
     // virtual card api
     Route::controller(VirtualCardController::class)->prefix('virtual-card')->name('virtual.card.')->group(function () {
         Route::get('api/settings', 'cardApi')->name('api');
