@@ -130,7 +130,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('index', 'index')->name('index');
         Route::put('charges/update', 'trxChargeUpdate')->name('charges.update');
     });
-    Route::resource('pricing-rules', PricingRuleController::class)->except(['show']);
+
+    Route::controller(PricingRuleController::class)->prefix('pricing-rules')->name('pricing.rules.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('{rule}/edit', 'edit')->name('edit');
+        Route::put('{rule}', 'update')->name('update');
+        Route::delete('{rule}', 'destroy')->name('destroy');
+    });
     // virtual card api
     Route::controller(VirtualCardController::class)->prefix('virtual-card')->name('virtual.card.')->group(function () {
         Route::get('api/settings', 'cardApi')->name('api');

@@ -2,140 +2,133 @@
 
 namespace App\Services\Pricing;
 
-use App\Models\Pricing\PricingRule;
+use App\Models\FeeTier;
+use App\Models\PricingRule;
+use App\Services\Pricing\DTO\FeeQuote;
 use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class FeeEngine
 {
-    public function __construct(protected CurrencyRateService $currencyRateService)
-    {
+    public function __construct(
+        protected ExchangeRateResolver $exchangeRateResolver
+    ) {
     }
 
-    /**
-     * @param array{experiment?: string|null, variant?: string|null, metadata?: array} $context
-     */
     public function quote(
         string $currency,
         string $provider,
         string $transactionType,
         string $userLevel,
-        float $amount,
-        array $context = []
+        float $amount
     ): FeeQuote {
-        if ($amount <= 0) {
-            throw new \InvalidArgumentException('Amount must be greater than zero.');
-        }
+        $rule = $this->resolveRule($currency, $provider, $transactionType, $userLevel);
 
-        $currency = strtoupper($currency);
-        $provider = strtolower($provider);
-        $transactionType = strtolower($transactionType);
-        $userLevel = strtolower($userLevel);
-        $experiment = isset($context['experiment']) ? strtolower((string) $context['experiment']) : null;
-        $variant = isset($context['variant']) ? strtolower((string) $context['variant']) : null;
+        [$baseRate, $spreadMultiplier] = $this->resolveRate($currency, $rule);
+        $amountInBase = $amount * $baseRate;
 
-        $rules = PricingRule::query()
+        $tier = $this->matchTier($rule->feeTiers, $amountInBase);
+
+        $percentFeeAmount = ($amountInBase * (float) $tier->percent_fee) / 100;
+        $fixedFeeAmount = (float) $tier->fixed_fee;
+        $totalFeeInBase = $percentFeeAmount + $fixedFeeAmount;
+
+        $totalFee = ($totalFeeInBase / $baseRate) * $spreadMultiplier;
+        $fixedFee = ($fixedFeeAmount / $baseRate) * $spreadMultiplier;
+        $percentFee = ($percentFeeAmount / $baseRate) * $spreadMultiplier;
+
+        return new FeeQuote(
+            currency: strtoupper($currency),
+            provider: $provider,
+            transactionType: $transactionType,
+            userLevel: $userLevel,
+            amount: $amount,
+            totalFee: round($totalFee, 8),
+            fixedFee: round($fixedFee, 8),
+            percentFee: round($percentFee, 8),
+            appliedPercent: (float) $tier->percent_fee,
+            exchangeRate: $baseRate * $spreadMultiplier,
+            rule: $rule,
+        );
+    }
+
+    protected function resolveRule(string $currency, string $provider, string $transactionType, string $userLevel): PricingRule
+    {
+        $candidates = PricingRule::query()
             ->with('feeTiers')
             ->active()
-            ->whereRaw('LOWER(provider) = ?', [$provider])
-            ->whereRaw('LOWER(transaction_type) = ?', [$transactionType])
-            ->whereRaw('LOWER(currency) = ?', [$currency])
-            ->orderBy('priority')
-            ->orderByDesc('id')
-            ->get()
-            ->filter(function (PricingRule $rule) use ($userLevel, $experiment, $variant, $amount) {
-                if (! $rule->isActiveAt(Carbon::now())) {
-                    return false;
-                }
-
-                if (! $rule->matchesUserLevel($userLevel)) {
-                    return false;
-                }
-
-                if (! $rule->matchesExperiment($experiment, $variant)) {
-                    return false;
-                }
-
-                if (! $rule->matchesAmount($amount)) {
-                    return false;
-                }
-
-                return true;
+            ->where(function ($query) use ($currency) {
+                $query->whereNull('currency')
+                    ->orWhere('currency', strtoupper($currency))
+                    ->orWhere('currency', '*');
             })
-            ->sortBy(function (PricingRule $rule) use ($variant) {
-                $priority = $rule->priority ?? 100;
-                $variantWeight = 1;
-                if ($variant !== null && strtolower($rule->variant ?? '') === $variant) {
-                    $variantWeight = 0;
-                }
-
-                return [$priority, $variantWeight, $rule->id * -1];
+            ->where(function ($query) use ($provider) {
+                $query->whereNull('provider')
+                    ->orWhere('provider', $provider)
+                    ->orWhere('provider', '*');
             })
-            ->values();
+            ->where(function ($query) use ($transactionType) {
+                $query->where('transaction_type', $transactionType)
+                    ->orWhere('transaction_type', '*');
+            })
+            ->where(function ($query) use ($userLevel) {
+                $query->where('user_level', $userLevel)
+                    ->orWhere('user_level', '*');
+            })
+            ->orderByRaw("CASE WHEN currency = ? THEN 0 WHEN currency = '*' THEN 1 ELSE 2 END", [strtoupper($currency)])
+            ->orderByRaw("CASE WHEN provider = ? THEN 0 WHEN provider = '*' THEN 1 ELSE 2 END", [$provider])
+            ->orderByRaw("CASE WHEN user_level = ? THEN 0 WHEN user_level = '*' THEN 1 ELSE 2 END", [$userLevel])
+            ->orderByDesc('created_at')
+            ->get();
 
         /** @var PricingRule|null $rule */
-        $rule = $rules->first();
+        $rule = $candidates->first();
 
         if (! $rule) {
-            throw new PricingRuleNotFoundException('No pricing rule matched the given parameters.');
+            throw new PricingRuleNotFoundException('No pricing rule matched the provided parameters.');
         }
 
-        $tier = $rule->resolveTier($amount);
-
-        $feeType = $tier?->fee_type ?? $rule->fee_type;
-        $feeAmount = (float) ($tier?->fee_amount ?? $rule->fee_amount);
-        $feeCurrency = strtoupper($tier?->fee_currency ?? $rule->fee_currency ?? $currency);
-
-        $calculatedFee = $this->calculateFee($feeType, $amount, $feeAmount);
-
-        $exchangeRate = $feeCurrency === $currency
-            ? 1.0
-            : $this->currencyRateService->getRate($feeCurrency, $currency);
-
-        $metadata = Arr::only($rule->metadata ?? [], ['description', 'notes']);
-        $metadata['rate_value'] = $feeAmount;
-
-        if ($tier) {
-            $metadata['tier_priority'] = $tier->priority;
+        if ($rule->feeTiers->isEmpty()) {
+            throw new PricingRuleNotFoundException('Pricing rule is missing fee tiers.');
         }
 
-        $quote = new FeeQuote(
-            amount: $amount,
-            transactionCurrency: $currency,
-            feeAmount: $calculatedFee,
-            feeCurrency: $feeCurrency,
-            exchangeRate: $exchangeRate,
-            feeType: $feeType,
-            ruleId: $rule->id,
-            tierId: $tier?->id,
-            meta: $metadata
-        );
+        return $rule;
+    }
 
-        foreach (($context['metadata'] ?? []) as $key => $value) {
-            if (\is_string($key)) {
-                $quote = $quote->withMeta($key, $value);
+    /**
+     * @return array{0: float, 1: float}
+     */
+    protected function resolveRate(string $currency, PricingRule $rule): array
+    {
+        $currency = strtoupper($currency);
+        $baseCurrency = strtoupper($rule->base_currency ?? $currency);
+
+        $rate = $this->exchangeRateResolver->getRate($currency, $baseCurrency);
+        $spreadMultiplier = 1 + ((float) $rule->spread_bps / 10000);
+
+        return [$rate, $spreadMultiplier];
+    }
+
+    /**
+     * @param Collection<int, FeeTier> $tiers
+     */
+    protected function matchTier(Collection $tiers, float $amountInBase): FeeTier
+    {
+        $sorted = $tiers->sortBy([['priority', 'asc'], ['min_amount', 'asc']]);
+
+        foreach ($sorted as $tier) {
+            $min = (float) $tier->min_amount;
+            $max = $tier->max_amount !== null ? (float) $tier->max_amount : null;
+
+            if ($amountInBase < $min) {
+                continue;
+            }
+
+            if ($max === null || $amountInBase <= $max) {
+                return $tier;
             }
         }
 
-        return $quote
-            ->withMeta('rule_name', $rule->name)
-            ->withMeta('provider', $provider)
-            ->withMeta('transaction_type', $transactionType)
-            ->withMeta('user_level', $userLevel)
-            ->withMeta('experiment', $experiment)
-            ->withMeta('variant', $variant)
-            ->withMeta('calculation_source', $tier ? 'tier' : 'base');
-    }
-
-    protected function calculateFee(string $feeType, float $amount, float $value): float
-    {
-        $feeType = strtolower($feeType);
-
-        return match ($feeType) {
-            'percentage', 'percent' => ($amount * $value) / 100,
-            'bps' => ($amount * $value) / 10000,
-            default => $value,
-        };
+        return $sorted->last();
     }
 }
