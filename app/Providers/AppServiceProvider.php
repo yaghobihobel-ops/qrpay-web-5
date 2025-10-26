@@ -6,9 +6,8 @@ use App\Constants\ExtensionConst;
 use App\Models\Transaction;
 use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
-use App\Services\Audit\AuditLogger;
-use App\Traits\Audit\LogsAudit;
-use Illuminate\Http\Request;
+use App\Services\Deployment\CanaryReleaseManager;
+use App\Services\Deployment\FeatureToggle;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -29,8 +28,12 @@ class AppServiceProvider extends ServiceProvider
     */
     public function register()
     {
-        $this->app->singleton(AuditLogger::class, function ($app) {
-            return new AuditLogger($app->make(Request::class));
+        $this->app->singleton(FeatureToggle::class, function ($app) {
+            return new FeatureToggle();
+        });
+
+        $this->app->singleton(CanaryReleaseManager::class, function ($app) {
+            return new CanaryReleaseManager($app->make(FeatureToggle::class));
         });
     }
 

@@ -11,8 +11,11 @@
         <testsuite name="Feature">
             <directory suffix="Test.php">./tests/Feature</directory>
         </testsuite>
-        <testsuite name="Browser">
-            <directory suffix="Test.php">./tests/Browser</directory>
+        <testsuite name="Contract">
+            <directory suffix="Test.php">./tests/Contract</directory>
+        </testsuite>
+        <testsuite name="EndToEnd">
+            <directory suffix="Test.php">./tests/E2E</directory>
         </testsuite>
     </testsuites>
     <coverage processUncoveredFiles="true">
