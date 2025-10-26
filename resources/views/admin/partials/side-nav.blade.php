@@ -35,6 +35,7 @@
                     'title'     => __("API Guide"),
                     'icon'      => "menu-icon las la-book",
                     'dusk'      => 'sidebar-api-guide',
+                    'check_permission' => false,
                 ])
 
                 {{-- Section Default --}}
