@@ -16,6 +16,10 @@ class DeveloperController extends Controller
         $page_title = "Prerequisites";
         return view('frontend.developer.prerequisites',compact('page_title'));
     }
+    public function quickStart(){
+        $page_title = "Quick Start";
+        return view('frontend.developer.quickstart',compact('page_title'));
+    }
     public function authentication(){
         $page_title = "Authentication";
         return view('frontend.developer.authentication',compact('page_title'));
@@ -23,6 +27,22 @@ class DeveloperController extends Controller
     public function baseUrl(){
         $page_title = "Base URL";
         return view('frontend.developer.base-url',compact('page_title'));
+    }
+    public function sandbox(){
+        $page_title = "Sandbox";
+        return view('frontend.developer.sandbox',compact('page_title'));
+    }
+    public function openapi(){
+        $page_title = "OpenAPI & SDKs";
+        return view('frontend.developer.openapi',compact('page_title'));
+    }
+    public function postman(){
+        $page_title = "Postman Collection";
+        return view('frontend.developer.postman',compact('page_title'));
+    }
+    public function feedback(){
+        $page_title = "Feedback";
+        return view('frontend.developer.feedback',compact('page_title'));
     }
     public function accessToken(){
         $page_title = "Access Token";

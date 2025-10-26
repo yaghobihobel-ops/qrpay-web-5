@@ -151,7 +151,7 @@ Route::prefix('agent')->group(function(){
                 Route::post('confirmed','confirmedMoneyIn')->middleware(['api.kyc']);
             });
              //Withdraw Controller
-            Route::controller(WithdrawController::class)->prefix('withdraw')->group(function(){
+            Route::controller(WithdrawController::class)->prefix('withdraw')->middleware('domain.rate_limit:withdrawal,agent-api')->group(function(){
                 Route::get('info','withdrawInfo');
                 Route::post('insert','withdrawInsert')->middleware(['api.kyc']);
                 Route::post('manual/confirmed','withdrawConfirmed')->name('agent.withdraw.manual.confirmed')->middleware(['api.kyc']);
@@ -162,12 +162,12 @@ Route::prefix('agent')->group(function(){
                 Route::get('get/flutterwave/bank/branches','getFlutterWaveBankBranches');
             });
              //Bill Pay
-            Route::controller(BillPayController::class)->prefix('bill-pay')->group(function(){
+            Route::controller(BillPayController::class)->prefix('bill-pay')->middleware('domain.rate_limit:payment,agent-bill-pay')->group(function(){
                 Route::get('info','billPayInfo');
                 Route::post('confirmed','billPayConfirmed')->middleware(['api.kyc']);
             });
              //mobile top up
-            Route::controller(MobileTopupController::class)->prefix('mobile-topup')->group(function(){
+            Route::controller(MobileTopupController::class)->prefix('mobile-topup')->middleware('domain.rate_limit:topup,agent-mobile-topup')->group(function(){
                 Route::get('info','topUpInfo');
                 Route::post('confirmed','topUpConfirmed')->middleware(['api.kyc']);
                 //automatic method

@@ -48,6 +48,7 @@ use App\Models\UserSupportTicket;
 use App\Models\UserWallet;
 use App\Models\VirtualCard;
 use App\Models\VirtualCardApi;
+use App\Services\Monitoring\DomainInstrumentation;
 use App\Notifications\Agent\Auth\SendAuthorizationCode as AgentAuthSendAuthorizationCode;
 use App\Notifications\Merchant\Auth\SendAuthorizationCode as AuthSendAuthorizationCode;
 use App\Notifications\User\Auth\SendAuthorizationCode;
@@ -2091,6 +2092,14 @@ function module_access_merchant_api($key)
 }
 //flutterwave automatic withdrawal helper functions
 function getFlutterwaveBanks($iso2){
+    $instrumentation = app(DomainInstrumentation::class);
+    $config = config('withdrawal', []);
+    $provider = 'flutterwave';
+    $context = $instrumentation->startOperation('withdrawal', 'fetch_flutterwave_banks', $config, [
+        'provider' => $provider,
+        'country' => $iso2,
+    ]);
+
     $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
     $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
     $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
@@ -2110,10 +2119,20 @@ function getFlutterwaveBanks($iso2){
     ));
 
     $response = curl_exec($curl);
+    if ($response === false) {
+        $error = curl_error($curl);
+        curl_close($curl);
+        $exception = new \RuntimeException($error ?: 'Unable to fetch Flutterwave banks');
+        $instrumentation->recordFailure($context, $exception, ['curl_error' => $error]);
+        throw $exception;
+    }
     curl_close($curl);
     $banks = json_decode($response,true);
 
-    return filterBanks($banks['data']??[]);
+    $filtered = filterBanks($banks['data']??[]);
+    $instrumentation->recordSuccess($context, ['bank_count' => is_array($filtered) ? count($filtered) : 0]);
+
+    return $filtered;
 }
 
 function filterBanks($banks)
@@ -2141,6 +2160,13 @@ function filterBanks($banks)
 }
 function checkBankAccount($account_number,$bank_code){
 
+    $instrumentation = app(DomainInstrumentation::class);
+    $config = config('withdrawal', []);
+    $context = $instrumentation->startOperation('withdrawal', 'verify_flutterwave_bank_account', $config, [
+        'provider' => 'flutterwave',
+        'bank_code' => $bank_code,
+    ]);
+
     $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
     $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
     $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
@@ -2162,14 +2188,28 @@ function checkBankAccount($account_number,$bank_code){
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        return curl_errno($ch);
-    } else {
-        $data = json_decode($response,true);
-        return $data;
+
+    if ($response === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        $payload = [
+            'status' => false,
+            'message' => $error ?: __('Unable to verify bank account'),
+        ];
+        $instrumentation->recordFailure($context, new \RuntimeException($payload['message']), ['curl_error' => $error]);
+        return $payload;
     }
 
     curl_close($ch);
+    $data = json_decode($response,true);
+
+    if (!is_array($data) || ($data['status'] ?? null) !== 'success') {
+        $instrumentation->recordFailure($context, new \RuntimeException($data['message'] ?? 'Account validation failed'), $data ?? []);
+    } else {
+        $instrumentation->recordSuccess($context, ['account_number' => $account_number]);
+    }
+
+    return $data;
 }
 function getPaymentCredentials($credentials,$label){
     $data = null;
