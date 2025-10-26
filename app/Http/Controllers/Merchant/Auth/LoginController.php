@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\Merchant\LoggedInUsers;
+use App\Traits\Security\LogsSecurityEvents;
 
 
 class LoginController extends Controller
@@ -29,7 +30,7 @@ class LoginController extends Controller
 
     protected $request_data;
 
-    use AuthenticatesUsers, LoggedInUsers;
+    use AuthenticatesUsers, LoggedInUsers, LogsSecurityEvents;
 
     public function showLoginForm() {
         $page_title ="Merchant Login";
@@ -104,6 +105,20 @@ class LoginController extends Controller
      */
     protected function sendFailedLoginResponse(Request $request)
     {
+        $identifier = (string) $request->input('credentials');
+        $attempts = method_exists($this, 'limiter') ? $this->limiter()->attempts($this->throttleKey($request)) : 0;
+
+        $this->logSecurityWarning('merchant_login_failed', [
+            'identifier' => $identifier,
+            'attempts' => $attempts,
+            'ip' => $request->ip(),
+            'context' => 'merchant_web',
+        ]);
+
+        $this->notifyLoginThresholdExceeded($request, $identifier, $attempts, [
+            'context' => 'merchant_web',
+        ]);
+
         throw ValidationException::withMessages([
             "credentials" => [trans('auth.failed')],
         ]);
