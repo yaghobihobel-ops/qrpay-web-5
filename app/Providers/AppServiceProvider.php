@@ -6,8 +6,8 @@ use App\Constants\ExtensionConst;
 use App\Models\Transaction;
 use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
-use App\Services\Domain\ProviderOverrideRepository;
-use App\Services\Monitoring\DomainInstrumentation;
+use App\Services\Exchange\CurrencyLayerExchangeRateProvider;
+use App\Services\Exchange\ExchangeRateProviderInterface;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -26,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->bind(ExchangeRateProviderInterface::class, CurrencyLayerExchangeRateProvider::class);
     }
 
     /**

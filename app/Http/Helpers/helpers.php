@@ -2159,57 +2159,14 @@ function filterBanks($banks)
     return $filtered_banks;
 }
 function checkBankAccount($account_number,$bank_code){
+    $gateway = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
 
-    $instrumentation = app(DomainInstrumentation::class);
-    $config = config('withdrawal', []);
-    $context = $instrumentation->startOperation('withdrawal', 'verify_flutterwave_bank_account', $config, [
-        'provider' => 'flutterwave',
-        'bank_code' => $bank_code,
+    /** @var \App\Services\Payout\PayoutProviderInterface $service */
+    $service = app(\App\Services\Payout\PayoutProviderInterface::class);
+
+    return $service->verifyBankAccount($account_number, $bank_code, [
+        'gateway' => $gateway,
     ]);
-
-    $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
-    $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
-    $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
-    $ch = curl_init();
-    $url =   $base_url.'/accounts/resolve';
-    $data = [
-        "account_number" => $account_number,
-        "account_bank" => $bank_code
-    ];
-
-    $headers = [
-        "Authorization: Bearer ". $secretKey,
-        'Content-Type: application/json'
-    ];
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $response = curl_exec($ch);
-
-    if ($response === false) {
-        $error = curl_error($ch);
-        curl_close($ch);
-        $payload = [
-            'status' => false,
-            'message' => $error ?: __('Unable to verify bank account'),
-        ];
-        $instrumentation->recordFailure($context, new \RuntimeException($payload['message']), ['curl_error' => $error]);
-        return $payload;
-    }
-
-    curl_close($ch);
-    $data = json_decode($response,true);
-
-    if (!is_array($data) || ($data['status'] ?? null) !== 'success') {
-        $instrumentation->recordFailure($context, new \RuntimeException($data['message'] ?? 'Account validation failed'), $data ?? []);
-    } else {
-        $instrumentation->recordSuccess($context, ['account_number' => $account_number]);
-    }
-
-    return $data;
 }
 function getPaymentCredentials($credentials,$label){
     $data = null;

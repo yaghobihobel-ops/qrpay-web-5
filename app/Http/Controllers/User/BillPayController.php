@@ -326,7 +326,7 @@ class BillPayController extends Controller
                 ->onQueue('bill-payments')
                 ->delay(now()->addSeconds(scheduleBillPayApiCall($payBill)));
             //for testing
-            // SyncBillPaymentStatus::dispatch($transaction->id)->delay(now()->addSeconds(10));
+            // SyncBillPaymentStatus::dispatch($transaction)->delay(now()->addSeconds(10));
             return redirect()->route("user.bill.pay.index")->with(['success' => [__('Bill Pay Request Successful')]]);
         }catch(Exception $e){
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);

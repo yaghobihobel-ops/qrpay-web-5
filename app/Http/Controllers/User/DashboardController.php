@@ -18,15 +18,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\AdminNotifications\AuthNotifications;
+use App\Traits\TracksQueryPerformance;
 
 class DashboardController extends Controller
 {
-    use AuthNotifications;
+    use AuthNotifications, TracksQueryPerformance;
     public function index()
     {
-        $page_title =__( "Dashboard");
-        $baseCurrency = Currency::default();
-        $transactions = Transaction::auth()->latest()->take(5)->get();
+        $this->startQueryMonitoring();
+
+        try {
+            $page_title =__( "Dashboard");
+            $baseCurrency = Currency::default();
+            $transactions = Transaction::auth()
+                ->with(['creator', 'creator_wallet.currency', 'charge', 'currency', 'gateway_currency.gateway'])
+                ->latest()
+                ->paginate(10);
         $data['totalReceiveRemittance'] =Transaction::auth()->remitance()->where('attribute',"RECEIVED")->where('status',1)->sum('request_amount');
         $data['totalSendRemittance'] =Transaction::auth()->remitance()->where('attribute',"SEND")->where('status',1)->sum('request_amount');
         $data['cardAmount'] = userActiveCardData()['total_balance'];
@@ -124,7 +131,10 @@ class DashboardController extends Controller
         ];
 
          //
-        return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData'));
+            return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData'));
+        } finally {
+            $this->stopQueryMonitoring('user.dashboard');
+        }
     }
 
     public function logout(Request $request) {

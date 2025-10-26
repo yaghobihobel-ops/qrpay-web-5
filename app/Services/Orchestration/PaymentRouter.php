@@ -7,9 +7,8 @@ use App\Models\User;
 use App\Services\Orchestration\Contracts\PaymentProviderAdapterInterface;
 use App\Services\Orchestration\DTO\PaymentRouteResult;
 use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
-use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
 use App\Services\Pricing\FeeEngine;
-use App\Services\Pricing\FeeQuote;
+use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
 use Illuminate\Support\Collection;
 
 class PaymentRouter
@@ -17,7 +16,7 @@ class PaymentRouter
     /** @var array<string, PaymentProviderAdapterInterface> */
     private array $providers = [];
 
-    private ?FeeEngine $feeEngine;
+    private ?FeeEngine $feeEngine = null;
 
     /**
      * @param iterable<PaymentProviderAdapterInterface> $providers
@@ -28,7 +27,7 @@ class PaymentRouter
             $this->registerProvider($provider);
         }
 
-        $this->feeEngine = $feeEngine ?? app(FeeEngine::class);
+        $this->feeEngine = $feeEngine;
     }
 
     public function registerProvider(PaymentProviderAdapterInterface $provider): void
@@ -49,10 +48,13 @@ class PaymentRouter
         string $currency,
         float $amount,
         string $destinationCountry,
-        array $slaPolicies = []
+        array $slaPolicies = [],
+        array $pricingContext = []
     ): PaymentRouteResult {
         $currency = strtoupper($currency);
         $destinationCountry = strtoupper($destinationCountry);
+        $transactionType = $pricingContext['transaction_type'] ?? '*';
+        $userLevel = $pricingContext['user_level'] ?? 'standard';
 
         $routes = PaymentRoute::query()
             ->where('currency', $currency)
@@ -122,8 +124,7 @@ class PaymentRouter
                 continue;
             }
 
-            /** @var FeeQuote|null $feeQuote */
-            $feeQuote = $routeQuotes[$route->id] ?? null;
+            $feeQuote = $this->buildFeeQuote($route, $currency, $amount, $transactionType, $userLevel);
 
             return new PaymentRouteResult($provider, $route, $slaProfile, $kpiMetrics, $feeQuote);
         }
@@ -157,12 +158,27 @@ class PaymentRouter
         return true;
     }
 
-    protected function resolveUserFeeLevel(User $user): string
-    {
-        if (method_exists($user, 'getFeeLevel')) {
-            return $user->getFeeLevel();
+    private function buildFeeQuote(
+        PaymentRoute $route,
+        string $currency,
+        float $amount,
+        string $transactionType,
+        string $userLevel
+    ) {
+        if (! $this->feeEngine) {
+            return null;
         }
 
-        return 'standard';
+        try {
+            return $this->feeEngine->quote(
+                currency: $currency,
+                provider: $route->provider,
+                transactionType: $transactionType,
+                userLevel: $userLevel,
+                amount: $amount
+            );
+        } catch (PricingRuleNotFoundException $exception) {
+            return null;
+        }
     }
 }

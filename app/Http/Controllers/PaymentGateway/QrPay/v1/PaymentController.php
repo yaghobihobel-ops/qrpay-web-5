@@ -15,13 +15,13 @@ use App\Constants\PaymentGatewayConst;
 use App\Models\Merchants\SandboxWallet;
 use App\Models\Merchants\MerchantWallet;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Admin\MerchantConfiguration;
 use App\Models\Merchants\GatewaySetting;
 use App\Models\Merchants\PaymentOrderRequest;
 use App\Models\StripeVirtualCard;
 use App\Models\SudoVirtualCard;
 use App\Models\VirtualCard;
 use App\Notifications\PaymentGateway\PaymentVerification;
+use App\Services\View\QrPayGatewayViewModelService;
 use Stripe\Charge;
 use Stripe\Stripe as StripePackage;
 use Stripe\Token;
@@ -36,6 +36,13 @@ class PaymentController extends Controller
     protected $test_email_verification_code = 123456;
     protected $testuser_email = "sandbox@appdevs.net";
     protected $testuser_username = "appdevs";
+
+    protected QrPayGatewayViewModelService $viewModelService;
+
+    public function __construct(QrPayGatewayViewModelService $viewModelService)
+    {
+        $this->viewModelService = $viewModelService;
+    }
 
     public function paymentCreate(Request $request) {
         $access_token = $request->bearerToken();
@@ -194,7 +201,7 @@ class PaymentController extends Controller
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
 
-        $merchant_configuration = MerchantConfiguration::first();
+        $merchant_configuration = $this->viewModelService->getMerchantConfiguration();
         if(!$merchant_configuration) {
             $page_title = "Process Error";
             $data = [
@@ -206,7 +213,7 @@ class PaymentController extends Controller
             ];
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
-        $payment_gateway_image = get_image($merchant_configuration->image,'merchant-config');
+        $payment_gateway_image = $this->viewModelService->getPaymentGatewayImage($merchant_configuration);
 
         if($request_record->authentication != true) {
             $page_title = "Process Error";
@@ -371,7 +378,7 @@ class PaymentController extends Controller
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
 
-        $merchant_configuration = MerchantConfiguration::first();
+        $merchant_configuration = $this->viewModelService->getMerchantConfiguration();
         if(!$merchant_configuration) {
             $page_title = "Process Error";
             $data = [
@@ -383,7 +390,7 @@ class PaymentController extends Controller
             ];
             return view('qrpay-gateway.pages.error',compact('data','page_title'));
         }
-        $payment_gateway_image = get_image($merchant_configuration->image,'merchant-config');
+        $payment_gateway_image = $this->viewModelService->getPaymentGatewayImage($merchant_configuration);
 
         if($request_record->authentication != true) {
             $page_title = "Process Error";

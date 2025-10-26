@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\TrxSettingsController;
 use App\Http\Controllers\Admin\AddMoneyController;
+use App\Http\Controllers\Admin\ApiHelpController;
 use App\Http\Controllers\Admin\AdminCareController;
 use App\Http\Controllers\Admin\AgentCareController;
 use App\Http\Controllers\Admin\AppOnboardScreensController;
@@ -75,7 +76,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('notifications/clear','notificationsClear')->name('notifications.clear');
     });
 
-    Route::get('documentation', [DocumentationController::class, 'index'])->name('documentation.index');
+    Route::get('api-guide', [ApiHelpController::class, 'index'])->name('api.guide');
     // Admin Profile
     Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
         Route::get('index', 'index')->name('index');
@@ -130,7 +131,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('index', 'index')->name('index');
         Route::put('charges/update', 'trxChargeUpdate')->name('charges.update');
     });
-    Route::resource('pricing-rules', PricingRuleController::class)->except(['show']);
+
+    Route::controller(PricingRuleController::class)->prefix('pricing-rules')->name('pricing.rules.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('{rule}/edit', 'edit')->name('edit');
+        Route::put('{rule}', 'update')->name('update');
+        Route::delete('{rule}', 'destroy')->name('destroy');
+    });
     // virtual card api
     Route::controller(VirtualCardController::class)->prefix('virtual-card')->name('virtual.card.')->group(function () {
         Route::get('api/settings', 'cardApi')->name('api');

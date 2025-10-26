@@ -2,157 +2,124 @@
 
 namespace Tests\Unit\Pricing;
 
-use App\Models\Pricing\PricingRule;
-use App\Services\Pricing\CurrencyRateService;
+use App\Models\FeeTier;
+use App\Models\PricingRule;
 use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
+use App\Services\Pricing\ExchangeRateResolver;
 use App\Services\Pricing\FeeEngine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
+use Mockery;
 use Tests\TestCase;
 
 class FeeEngineTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    public function test_it_applies_fee_tiers_with_currency_conversion(): void
     {
-        parent::setUp();
-        Config::set('cache.default', 'array');
-        Cache::store('array')->clear();
-        Config::set('pricing.scenario_rates', [
-            'USD' => ['EUR' => 0.92],
-            'EUR' => ['USD' => 1.087],
-        ]);
-    }
-
-    protected function engine(): FeeEngine
-    {
-        return new FeeEngine(new CurrencyRateService(app('config'), Cache::store('array')));
-    }
-
-    public function test_it_calculates_flat_fee(): void
-    {
-        PricingRule::create([
-            'name' => 'Flat fee',
-            'currency' => 'USD',
-            'provider' => 'provider-a',
-            'transaction_type' => 'withdraw',
-            'fee_type' => 'flat',
-            'fee_amount' => 5,
-            'fee_currency' => 'USD',
-            'priority' => 10,
-            'active' => true,
+        $rule = PricingRule::factory()->create([
+            'name' => 'IRR make payment',
+            'provider' => 'internal-ledger',
+            'currency' => 'IRR',
+            'transaction_type' => 'make-payment',
+            'user_level' => 'standard',
+            'base_currency' => 'USD',
+            'spread_bps' => 50,
         ]);
 
-        $quote = $this->engine()->quote('USD', 'provider-a', 'withdraw', 'standard', 100);
-
-        $this->assertSame(5.0, $quote->getConvertedFee());
-        $this->assertSame('flat', $quote->getFeeType());
-    }
-
-    public function test_it_applies_percentage_tier(): void
-    {
-        $rule = PricingRule::create([
-            'name' => 'Tiered percentage',
-            'currency' => 'USD',
-            'provider' => 'provider-b',
-            'transaction_type' => 'withdraw',
-            'fee_type' => 'percentage',
-            'fee_amount' => 1.5,
-            'fee_currency' => 'USD',
-            'priority' => 5,
-            'active' => true,
-        ]);
-
-        $rule->feeTiers()->createMany([
-            [
-                'min_amount' => 0,
-                'max_amount' => 999.99,
-                'fee_type' => 'percentage',
-                'fee_amount' => 1.0,
-                'priority' => 10,
-            ],
-            [
-                'min_amount' => 1000,
-                'max_amount' => null,
-                'fee_type' => 'percentage',
-                'fee_amount' => 0.8,
-                'priority' => 20,
-            ],
-        ]);
-
-        $quote = $this->engine()->quote('USD', 'provider-b', 'withdraw', 'standard', 1500);
-
-        $this->assertEqualsWithDelta(12.0, $quote->getConvertedFee(), 0.0001);
-        $this->assertSame('percentage', $quote->getFeeType());
-        $this->assertSame($rule->feeTiers()->where('fee_amount', 0.8)->first()->id, $quote->getTierId());
-    }
-
-    public function test_it_converts_fee_currency(): void
-    {
-        PricingRule::create([
-            'name' => 'Cross currency',
-            'currency' => 'EUR',
-            'provider' => 'provider-c',
-            'transaction_type' => 'withdraw',
-            'fee_type' => 'flat',
-            'fee_amount' => 5,
-            'fee_currency' => 'USD',
+        FeeTier::factory()->create([
+            'pricing_rule_id' => $rule->id,
+            'min_amount' => 0,
+            'max_amount' => null,
+            'percent_fee' => 1.5,
+            'fixed_fee' => 2,
             'priority' => 1,
-            'active' => true,
         ]);
 
-        $quote = $this->engine()->quote('EUR', 'provider-c', 'withdraw', 'standard', 200);
+        $resolver = Mockery::mock(ExchangeRateResolver::class);
+        $resolver->shouldReceive('getRate')
+            ->with('IRR', 'USD')
+            ->andReturn(0.000024);
 
-        $this->assertEqualsWithDelta(4.6, $quote->getConvertedFee(), 0.0001);
-        $this->assertSame('flat', $quote->getFeeType());
+        $engine = new FeeEngine($resolver);
+
+        $quote = $engine->quote('IRR', 'internal-ledger', 'make-payment', 'standard', 1_000_000);
+
+        $this->assertSame('IRR', $quote->currency);
+        $this->assertEquals(1_000_000.0, $quote->amount);
+        $this->assertEquals('internal-ledger', $quote->provider);
+        $this->assertEqualsWithDelta(98_825.0, $quote->totalFee, 0.5);
+        $this->assertEqualsWithDelta(83_333.33, $quote->percentFee, 1);
+        $this->assertEqualsWithDelta(15_491.67, $quote->fixedFee, 1);
+        $this->assertEquals(1.5, $quote->appliedPercent);
+        $this->assertEqualsWithDelta(0.00002412, $quote->exchangeRate, 1.0E-9);
     }
 
-    public function test_it_throws_when_rule_not_found(): void
+    public function test_it_switches_fee_based_on_user_level(): void
+    {
+        $standardRule = PricingRule::factory()->create([
+            'name' => 'Standard make payment',
+            'provider' => 'internal-ledger',
+            'currency' => 'USD',
+            'transaction_type' => 'make-payment',
+            'user_level' => 'standard',
+            'base_currency' => 'USD',
+        ]);
+
+        $vipRule = PricingRule::factory()->create([
+            'name' => 'VIP make payment',
+            'provider' => 'internal-ledger',
+            'currency' => 'USD',
+            'transaction_type' => 'make-payment',
+            'user_level' => 'verified',
+            'base_currency' => 'USD',
+        ]);
+
+        FeeTier::factory()->create([
+            'pricing_rule_id' => $standardRule->id,
+            'min_amount' => 0,
+            'max_amount' => null,
+            'percent_fee' => 2,
+            'fixed_fee' => 1,
+            'priority' => 1,
+        ]);
+
+        FeeTier::factory()->create([
+            'pricing_rule_id' => $vipRule->id,
+            'min_amount' => 0,
+            'max_amount' => null,
+            'percent_fee' => 1,
+            'fixed_fee' => 0.5,
+            'priority' => 1,
+        ]);
+
+        $resolver = Mockery::mock(ExchangeRateResolver::class);
+        $resolver->shouldReceive('getRate')->andReturn(1.0);
+
+        $engine = new FeeEngine($resolver);
+
+        $standardQuote = $engine->quote('USD', 'internal-ledger', 'make-payment', 'standard', 1000);
+        $vipQuote = $engine->quote('USD', 'internal-ledger', 'make-payment', 'verified', 1000);
+
+        $this->assertEqualsWithDelta(21.0, $standardQuote->totalFee, 0.01);
+        $this->assertEqualsWithDelta(11.5, $vipQuote->totalFee, 0.01);
+        $this->assertTrue($vipQuote->totalFee < $standardQuote->totalFee);
+    }
+
+    public function test_it_throws_when_no_rule_matches(): void
     {
         $this->expectException(PricingRuleNotFoundException::class);
 
-        $this->engine()->quote('USD', 'missing-provider', 'withdraw', 'standard', 50);
+        $resolver = Mockery::mock(ExchangeRateResolver::class);
+        $resolver->shouldReceive('getRate')->never();
+
+        $engine = new FeeEngine($resolver);
+        $engine->quote('USD', 'internal-ledger', 'make-payment', 'standard', 100);
     }
 
-    public function test_it_selects_variant_when_experiment_context_provided(): void
+    protected function tearDown(): void
     {
-        PricingRule::create([
-            'name' => 'Control rule',
-            'currency' => 'USD',
-            'provider' => 'provider-d',
-            'transaction_type' => 'withdraw',
-            'fee_type' => 'flat',
-            'fee_amount' => 10,
-            'fee_currency' => 'USD',
-            'priority' => 50,
-            'active' => true,
-            'experiment' => 'spring-test',
-            'variant' => 'control',
-        ]);
-
-        PricingRule::create([
-            'name' => 'Variant B',
-            'currency' => 'USD',
-            'provider' => 'provider-d',
-            'transaction_type' => 'withdraw',
-            'fee_type' => 'flat',
-            'fee_amount' => 7,
-            'fee_currency' => 'USD',
-            'priority' => 60,
-            'active' => true,
-            'experiment' => 'spring-test',
-            'variant' => 'b',
-        ]);
-
-        $quote = $this->engine()->quote('USD', 'provider-d', 'withdraw', 'standard', 100, [
-            'experiment' => 'spring-test',
-            'variant' => 'b',
-        ]);
-
-        $this->assertSame(7.0, $quote->getConvertedFee());
-        $this->assertSame('Variant B', $quote->getMeta('rule_name'));
-        $this->assertSame('b', $quote->getMeta('variant'));
+        Mockery::close();
+        parent::tearDown();
     }
 }

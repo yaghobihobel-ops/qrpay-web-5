@@ -22,6 +22,7 @@ use App\Http\Controllers\User\SendMoneyController;
 use App\Http\Controllers\User\ReceipientController;
 use App\Http\Controllers\User\MobileTopupController;
 use App\Http\Controllers\User\PaymentLinkController;
+use App\Http\Controllers\User\PricingController;
 use App\Http\Controllers\User\TransactionController;
 use App\Http\Controllers\User\VirtualcardController;
 use App\Http\Controllers\User\ReceiveMoneyController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\User\SupportTicketController;
 
 Route::prefix("user")->name("user.")->group(function(){
     Route::post("info",[GlobalController::class,'userInfo'])->name('info');
+    Route::post('pricing/quote', [PricingController::class, 'quote'])->name('pricing.quote');
     Route::controller(DashboardController::class)->group(function(){
         Route::get('dashboard','index')->name('dashboard');
         Route::get('qr/scan/{qr_code}','qrScan')->name('qr.scan');

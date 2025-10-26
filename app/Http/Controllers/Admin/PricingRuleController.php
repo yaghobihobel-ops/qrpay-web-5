@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\FeeTier;
+use App\Models\PricingRule;
 use App\Models\Pricing\PricingRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,118 +13,119 @@ use Illuminate\View\View;
 
 class PricingRuleController extends Controller
 {
-    public function index(Request $request): View
+    public function index(): View
     {
-        $query = PricingRule::query()->withCount('feeTiers');
+        $page_title = __('Pricing Rules');
+        $rules = PricingRule::with('feeTiers')->latest()->paginate(15);
 
-        if ($search = $request->string('search')->toString()) {
-            $query->where(function ($builder) use ($search) {
-                $builder->where('name', 'like', "%{$search}%")
-                    ->orWhere('provider', 'like', "%{$search}%")
-                    ->orWhere('currency', 'like', "%{$search}%")
-                    ->orWhere('transaction_type', 'like', "%{$search}%");
-            });
-        }
-
-        $rules = $query->orderBy('priority')->orderByDesc('id')->paginate(15)->withQueryString();
-
-        return view('admin.sections.pricing-rules.index', compact('rules'));
+        return view('admin.sections.pricing-rules.index', compact('page_title', 'rules'));
     }
 
     public function create(): View
     {
-        $rule = new PricingRule([
-            'priority' => 100,
-            'fee_type' => 'percentage',
-            'fee_currency' => get_default_currency_code(),
-            'active' => true,
-            'variant' => 'control',
-        ]);
+        $page_title = __('Create Pricing Rule');
 
-        return view('admin.sections.pricing-rules.create', compact('rule'));
+        return view('admin.sections.pricing-rules.create', [
+            'page_title' => $page_title,
+            'rule' => new PricingRule(),
+            'tiers' => collect([new FeeTier()]),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $this->validateRule($request);
+        $validated = $this->validateRequest($request);
 
         DB::transaction(function () use ($validated) {
-            $tiers = $validated['tiers'] ?? [];
+            $tiers = $validated['tiers'];
             unset($validated['tiers']);
 
-            /** @var PricingRule $rule */
             $rule = PricingRule::create($validated);
-            $rule->syncFeeTiers($tiers ?? []);
+
+            foreach ($tiers as $tier) {
+                $rule->feeTiers()->create($tier);
+            }
         });
 
-        return redirect()->route('admin.pricing-rules.index')->with('success', [__('Pricing rule created successfully.')]);
+        return redirect()->route('admin.pricing.rules.index')->with(['success' => [__('Pricing rule created successfully.')]]);
     }
 
-    public function edit(PricingRule $pricingRule): View
+    public function edit(PricingRule $rule): View
     {
-        $pricingRule->load('feeTiers');
+        $page_title = __('Edit Pricing Rule');
+
+        $rule->load('feeTiers');
 
         return view('admin.sections.pricing-rules.edit', [
-            'rule' => $pricingRule,
+            'page_title' => $page_title,
+            'rule' => $rule,
+            'tiers' => $rule->feeTiers->count() ? $rule->feeTiers : collect([new FeeTier()]),
         ]);
     }
 
-    public function update(Request $request, PricingRule $pricingRule): RedirectResponse
+    public function update(Request $request, PricingRule $rule): RedirectResponse
     {
-        $validated = $this->validateRule($request);
+        $validated = $this->validateRequest($request);
 
-        DB::transaction(function () use ($pricingRule, $validated) {
-            $tiers = $validated['tiers'] ?? [];
+        DB::transaction(function () use ($rule, $validated) {
+            $tiers = $validated['tiers'];
             unset($validated['tiers']);
 
-            $pricingRule->update($validated);
-            $pricingRule->syncFeeTiers($tiers ?? []);
+            $rule->update($validated);
+
+            $rule->feeTiers()->delete();
+            foreach ($tiers as $tier) {
+                $rule->feeTiers()->create($tier);
+            }
         });
 
-        return redirect()->route('admin.pricing-rules.index')->with('success', [__('Pricing rule updated successfully.')]);
+        return back()->with(['success' => [__('Pricing rule updated successfully.')]]);
     }
 
-    public function destroy(PricingRule $pricingRule): RedirectResponse
+    public function destroy(PricingRule $rule): RedirectResponse
     {
-        $pricingRule->delete();
+        $rule->delete();
 
-        return back()->with('success', [__('Pricing rule removed successfully.')]);
+        return back()->with(['success' => [__('Pricing rule removed.')]]);
     }
 
-    protected function validateRule(Request $request): array
+    protected function validateRequest(Request $request): array
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:190'],
-            'currency' => ['required', 'string', 'max:12'],
-            'provider' => ['required', 'string', 'max:190'],
-            'transaction_type' => ['required', 'string', 'max:120'],
-            'user_level' => ['nullable', 'string', 'max:120'],
-            'fee_type' => ['required', 'string', 'max:50'],
-            'fee_amount' => ['required', 'numeric', 'min:0'],
-            'fee_currency' => ['nullable', 'string', 'max:12'],
-            'min_amount' => ['nullable', 'numeric', 'min:0'],
-            'max_amount' => ['nullable', 'numeric', 'min:0'],
-            'priority' => ['required', 'integer', 'min:0'],
-            'active' => ['sometimes', 'boolean'],
-            'experiment' => ['nullable', 'string', 'max:120'],
-            'variant' => ['nullable', 'string', 'max:120'],
-            'metadata' => ['nullable', 'array'],
-            'metadata.description' => ['nullable', 'string', 'max:255'],
-            'metadata.notes' => ['nullable', 'string'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-            'tiers' => ['nullable', 'array'],
-            'tiers.*.id' => ['nullable', 'integer'],
-            'tiers.*.min_amount' => ['nullable', 'numeric', 'min:0'],
+            'name' => ['required', 'string', 'max:255'],
+            'provider' => ['nullable', 'string', 'max:255'],
+            'currency' => ['nullable', 'string', 'max:10'],
+            'transaction_type' => ['required', 'string', 'max:255'],
+            'user_level' => ['required', 'string', 'max:255'],
+            'base_currency' => ['required', 'string', 'max:10'],
+            'rate_provider' => ['nullable', 'string', 'max:255'],
+            'spread_bps' => ['nullable', 'numeric', 'min:0'],
+            'status' => ['required', 'boolean'],
+            'conditions' => ['nullable', 'array'],
+            'tiers' => ['required', 'array', 'min:1'],
+            'tiers.*.min_amount' => ['required', 'numeric', 'min:0'],
             'tiers.*.max_amount' => ['nullable', 'numeric', 'min:0'],
-            'tiers.*.fee_type' => ['nullable', 'string', 'max:50'],
-            'tiers.*.fee_amount' => ['nullable', 'numeric', 'min:0'],
-            'tiers.*.fee_currency' => ['nullable', 'string', 'max:12'],
+            'tiers.*.percent_fee' => ['nullable', 'numeric', 'min:0'],
+            'tiers.*.fixed_fee' => ['nullable', 'numeric', 'min:0'],
             'tiers.*.priority' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $validated['active'] = $request->boolean('active');
-        $validated['fee_currency'] = $validated['fee_currency'] ?? $validated['currency'];
+        $validated['spread_bps'] = $validated['spread_bps'] ?? 0;
+        $validated['conditions'] = $validated['conditions'] ?? null;
+        $validated['currency'] = $validated['currency'] ?: null;
+        $validated['provider'] = $validated['provider'] ?: null;
+
+        $validated['tiers'] = collect($validated['tiers'])->map(function (array $tier) {
+            if (! empty($tier['max_amount']) && $tier['max_amount'] < $tier['min_amount']) {
+                [$tier['min_amount'], $tier['max_amount']] = [$tier['max_amount'], $tier['min_amount']];
+            }
+
+            $tier['percent_fee'] = $tier['percent_fee'] ?? 0;
+            $tier['fixed_fee'] = $tier['fixed_fee'] ?? 0;
+            $tier['priority'] = $tier['priority'] ?? 0;
+
+            return $tier;
+        })->toArray();
 
         return $validated;
     }
