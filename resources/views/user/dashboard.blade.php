@@ -11,9 +11,10 @@
 
 @section('content')
 <div class="body-wrapper">
-    <div class="dashboard-area mt-10">
-        <div class="dashboard-header-wrapper">
-            <h3 class="title">{{ __("Overview") }}</h3>
+    <div id="user-dashboard-app" data-dashboard='@json($dashboardPayload)'></div>
+    <noscript>
+        <div class="mt-8 rounded-xl border border-warning bg-warning/10 p-6 text-warning">
+            {{ __('For the best experience enable JavaScript to view the interactive dashboard.') }}
         </div>
         <div class="dashboard-item-area">
             <div class="row mb-20-none">
@@ -187,126 +188,3 @@
     </div>
 </div>
 @endsection
-@push('script')
-<script>
-    var chart1 = $('#chart1');
-    var chart_one_data = chart1.data('chart_one_data');
-    var month_day = chart1.data('month_day');
-    var options = {
-        series: [
-            {
-            name: "{{ __('Pending') }}",
-            color: "#0C56DB",
-            data: chart_one_data.pending_data
-            }, {
-            name: "{{ __('Completed') }}",
-            color: "rgba(0, 227, 150, 0.85)",
-            data: chart_one_data.success_data
-            }, {
-            name: "{{ __('Canceled') }}",
-            color: "#dc3545",
-            data: chart_one_data.canceled_data
-            }, {
-            name: "{{ __('Hold') }}",
-            color: "#ded7e9",
-            data: chart_one_data.hold_data
-            }
-        ],
-        chart: {
-            height: 350,
-            type: "area",
-            toolbar: {
-                show: false,
-            },
-        },
-        dataLabels: {
-            enabled: false,
-        },
-        stroke: {
-            curve: "smooth",
-        },
-        xaxis: {
-            type: "datetime",
-            categories:month_day,
-        },
-        tooltip: {
-            x: {
-                format: "dd/MM/yy HH:mm",
-            },
-        },
-    };
-
-    var chart = new ApexCharts(document.querySelector("#chart1"), options);
-    chart.render();
-//money out
-var chart3 = $("#chart3");
-var chart_three_data = chart3.data("chart_three_data");
-var month_day = chart3.data("month_day");
-// apex-chart
-var options = {
-    series: [
-        {
-            name: "{{ __('Pending') }}",
-            color: "#0C56DB",
-            data: chart_three_data.pending_data
-            }, {
-            name: "{{ __('Completed') }}",
-            color: "rgba(0, 227, 150, 0.85)",
-            data: chart_three_data.success_data
-            }, {
-            name: "{{ __('Canceled') }}",
-            color: "#dc3545",
-            data: chart_three_data.canceled_data
-            }, {
-            name: "{{ __('Hold') }}",
-            color: "#ded7e9",
-            data: chart_three_data.hold_data
-            }
-    ],
-    chart: {
-        type: "bar",
-        height: 350,
-        stacked: true,
-        toolbar: {
-            show: false,
-        },
-        zoom: {
-            enabled: true,
-        },
-    },
-    responsive: [
-        {
-            breakpoint: 480,
-            options: {
-                legend: {
-                    position: "bottom",
-                    offsetX: -10,
-                    offsetY: 0,
-                },
-            },
-        },
-    ],
-    plotOptions: {
-        bar: {
-            horizontal: false,
-            borderRadius: 10,
-        },
-    },
-    xaxis: {
-        type: "datetime",
-        categories: month_day,
-    },
-    legend: {
-        position: "bottom",
-        offsetX: 40,
-    },
-    fill: {
-        opacity: 1,
-    },
-};
-
-var chart = new ApexCharts(document.querySelector("#chart3"), options);
-chart.render();
-
-</script>
-@endpush

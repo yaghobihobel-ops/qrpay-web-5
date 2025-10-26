@@ -2,20 +2,33 @@
 
 namespace App\Services\Payout;
 
+use App\Models\Admin\PaymentGateway;
+
 interface PayoutProviderInterface
 {
     /**
-     * Lookup a bank or payout destination using provider-specific identifiers.
+     * Initiate a payout transfer request with the upstream provider.
+     *
+     * @param  object  $moneyOutData
+     * @param  \App\Models\Admin\PaymentGateway  $gateway
+     * @param  array<string, mixed>  $attributes
      */
-    public function lookupBank(array $payload): PayoutResponse;
+    public function initiateTransfer(object $moneyOutData, PaymentGateway $gateway, array $attributes = []): PayoutResponse;
 
     /**
-     * Create a payout transfer with the provider.
+     * Verify a beneficiary account with the upstream provider.
+     *
+     * @param  string  $accountNumber
+     * @param  string  $bankCode
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
      */
-    public function createPayout(array $payload): PayoutResponse;
+    public function verifyBankAccount(string $accountNumber, string $bankCode, array $context = []): array;
 
     /**
-     * Check the status of a payout request.
+     * Handle webhook payloads posted by the upstream provider.
+     *
+     * @param  array<string, mixed>  $payload
      */
-    public function checkStatus(string $reference, array $context = []): PayoutResponse;
+    public function handleWebhook(array $payload): void;
 }

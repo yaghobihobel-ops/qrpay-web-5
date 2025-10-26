@@ -55,6 +55,27 @@
     </div>
 
     <div class="row mb-none-30">
+        <div class="col-xl-3 col-sm-6 mb-30">
+            <div class="card custom-card h-100">
+                <div class="card-body">
+                    <span class="text-uppercase text-muted small">{{ __('Trainings completed') }}</span>
+                    <h3 class="mt-2">{{ number_format($totalCompletions) }}</h3>
+                    <p class="mb-0 text-muted">{{ __('Successful walkthroughs marked as complete.') }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6 mb-30">
+            <div class="card custom-card h-100">
+                <div class="card-body">
+                    <span class="text-uppercase text-muted small">{{ __('Completion rate') }}</span>
+                    <h3 class="mt-2">{{ number_format($completionRate, 2) }}%</h3>
+                    <p class="mb-0 text-muted">{{ __('Completed walkthroughs relative to total views.') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-none-30">
         <div class="col-xl-7 mb-30">
             <div class="card custom-card h-100">
                 <div class="card-header d-flex align-items-center justify-content-between">
@@ -115,6 +136,52 @@
                             </li>
                         @endforeach
                     </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-none-30">
+        <div class="col-xl-12 mb-30">
+            <div class="card custom-card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h5 class="card-title mb-0">{{ __('Training completion performance') }}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('Section') }}</th>
+                                    <th>{{ __('Attempts') }}</th>
+                                    <th>{{ __('Completed') }}</th>
+                                    <th>{{ __('Completion %') }}</th>
+                                    <th>{{ __('Avg. progress %') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($completionStats as $completion)
+                                    <tr>
+                                        <td>{{ $completion['title'] }}</td>
+                                        <td>{{ number_format($completion['attempts']) }}</td>
+                                        <td>{{ number_format($completion['completed']) }}</td>
+                                        <td>{{ number_format($completion['completion_rate'], 2) }}%</td>
+                                        <td>
+                                            @if(!is_null($completion['avg_progress']))
+                                                {{ number_format($completion['avg_progress'], 1) }}%
+                                            @else
+                                                <span class="text-muted">{{ __('N/A') }}</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">{{ __('No completion activity recorded yet.') }}</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

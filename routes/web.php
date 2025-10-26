@@ -45,12 +45,7 @@ Route::controller(SiteController::class)->group(function(){
 
 });
 
-Route::prefix('help-center')->name('help-center.')->controller(HelpContentController::class)->group(function () {
-    Route::get('sections', 'index')->name('sections.index');
-    Route::get('sections/{section}', 'show')->name('sections.show');
-    Route::post('sections/{section}/track', 'track')->name('sections.track');
-    Route::post('sections/{section}/faq', 'faq')->name('sections.faq');
-});
+Route::view('docs', 'docs.index')->name('docs.index');
 
 Route::controller(DeveloperController::class)->prefix('developer')->name('developer.')->group(function(){
     Route::get('/','index')->name('index');
