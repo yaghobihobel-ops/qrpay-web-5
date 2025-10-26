@@ -2,7 +2,7 @@
 
 namespace App\Models\Admin;
 
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use App\Casts\EncryptedJson;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -21,7 +21,7 @@ class ReloadlyApi extends Model
     const ENV_PRODUCTION        = "PRODUCTION";
 
     protected $casts = [
-        'credentials'   => 'object',
+        'credentials'   => EncryptedJson::class,
     ];
 
     /**

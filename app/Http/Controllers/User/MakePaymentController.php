@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Constants\GlobalConst;
 use App\Constants\NotificationConst;
 use App\Constants\PaymentGatewayConst;
 use App\Http\Controllers\Controller;
@@ -23,11 +24,13 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Helpers\PushNotificationHelper;
 use App\Notifications\Admin\ActivityNotification;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Traits\Security\LogsSecurityEvents;
 
 class MakePaymentController extends Controller
 {
     protected  $trx_id;
     protected $basic_settings;
+    use LogsSecurityEvents;
     public function __construct()
     {
         $this->trx_id = 'MP'.getTrxNum();
@@ -37,7 +40,15 @@ class MakePaymentController extends Controller
         $page_title = __("Make Payment");
         $makePaymentCharge = TransactionSetting::where('slug','make-payment')->where('status',1)->first();
         $transactions = Transaction::auth()->makePayment()->latest()->take(10)->get();
-        return view('user.sections.make-payment.index',compact("page_title",'makePaymentCharge','transactions'));
+        $user = userGuard()['user'];
+
+        $pricingContext = [
+            'provider' => 'internal-ledger',
+            'transaction_type' => 'make-payment',
+            'user_level' => $this->resolveUserLevel($user),
+        ];
+
+        return view('user.sections.make-payment.index',compact("page_title",'makePaymentCharge','transactions', 'pricingContext'));
     }
     public function checkUser(Request $request){
         $email = $request->email;
@@ -60,34 +71,94 @@ class MakePaymentController extends Controller
         $makePaymentCharge = TransactionSetting::where('slug','make-payment')->where('status',1)->first();
         $userWallet = UserWallet::where('user_id',$user->id)->first();
         if(!$userWallet){
+            $this->logSecurityWarning('make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'reason' => 'user_wallet_not_found',
+                'context' => 'user_web',
+            ]);
             return back()->with(['error' => [__('User wallet not found')]]);
         }
         $baseCurrency = Currency::default();
         if(!$baseCurrency){
+            $this->logSecurityWarning('make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'reason' => 'base_currency_missing',
+                'context' => 'user_web',
+            ]);
             return back()->with(['error' => [__('Default currency not found')]]);
         }
         $rate = $baseCurrency->rate;
         $receiver = Merchant::where('email', $request->email)->first();
         if(!$receiver){
+            $this->logSecurityWarning('make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'reason' => 'receiver_not_found',
+                'context' => 'user_web',
+            ]);
             return back()->with(['error' => [__('Receiver not exist')]]);
         }
         $receiverWallet = MerchantWallet::where('merchant_id',$receiver->id)->first();
         if(!$receiverWallet){
+            $this->logSecurityWarning('make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'amount' => $amount,
+                'reason' => 'receiver_wallet_not_found',
+                'context' => 'user_web',
+            ]);
             return back()->with(['error' => [__('Receiver wallet not found')]]);
         }
 
         $minLimit =  $makePaymentCharge->min_limit *  $rate;
         $maxLimit =  $makePaymentCharge->max_limit *  $rate;
         if($amount < $minLimit || $amount > $maxLimit) {
+            $this->logSecurityWarning('make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'amount' => $amount,
+                'reason' => 'amount_out_of_bounds',
+                'min_limit' => $minLimit,
+                'max_limit' => $maxLimit,
+                'context' => 'user_web',
+            ]);
             return back()->with(['error' => [__("Please follow the transaction limit")]]);
         }
-        //charge calculations
-        $fixedCharge = $makePaymentCharge->fixed_charge *  $rate;
-        $percent_charge = ($request->amount / 100) * $makePaymentCharge->percent_charge;
-        $total_charge = $fixedCharge + $percent_charge;
+        try {
+            $quote = $this->feeEngine->quote(
+                currency: get_default_currency_code(),
+                provider: 'internal-ledger',
+                transactionType: 'make-payment',
+                userLevel: $this->resolveUserLevel($user),
+                amount: $amount
+            );
+        } catch (PricingRuleNotFoundException $exception) {
+            return back()->with(['error' => [$exception->getMessage()]]);
+        }
+
+        $fixedCharge = $quote->fixedFee;
+        $percent_charge = $quote->percentFee;
+        $total_charge = $quote->totalFee;
         $payable = $total_charge + $amount;
         $recipient = $amount;
         if($payable > $userWallet->balance ){
+            $this->logSecurityWarning('make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'amount' => $amount,
+                'payable' => $payable,
+                'balance' => $userWallet->balance,
+                'reason' => 'insufficient_balance',
+                'context' => 'user_web',
+            ]);
             return back()->with(['error' => [__('Sorry, insufficient balance')]]);
         }
 
@@ -136,8 +207,24 @@ class MakePaymentController extends Controller
             }
             $this->adminNotification($trx_id,$total_charge,$amount,$payable,$user,$receiver);
 
+            $this->logSecurityInfo('make_payment_success', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'trx_id' => $trx_id,
+                'amount' => $amount,
+                'payable' => $payable,
+                'context' => 'user_web',
+            ]);
             return redirect()->route("user.make.payment.index")->with(['success' => [__('Make Payment successful to').' '.$receiver->fullname]]);
         }catch(Exception $e) {
+            $this->logSecurityError('make_payment_exception', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'context' => 'user_web',
+                'message' => $e->getMessage(),
+            ]);
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
         }
 
@@ -174,6 +261,15 @@ class MakePaymentController extends Controller
             DB::commit();
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('make_payment_sender_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'trx_id' => $trx_id,
+                'amount' => $amount,
+                'payable' => $payable,
+                'context' => 'user_web',
+                'message' => $e->getMessage(),
+            ]);
             throw new Exception(__("Something went wrong! Please try again."));
         }
         return $id;
@@ -220,6 +316,13 @@ class MakePaymentController extends Controller
 
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('make_payment_sender_charge_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'transaction_id' => $id,
+                'context' => 'user_web',
+                'message' => $e->getMessage(),
+            ]);
             throw new Exception(__("Something went wrong! Please try again."));
         }
     }
@@ -254,6 +357,14 @@ class MakePaymentController extends Controller
             DB::commit();
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('make_payment_receiver_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'trx_id' => $trx_id,
+                'amount' => $amount,
+                'context' => 'user_web',
+                'message' => $e->getMessage(),
+            ]);
             throw new Exception(__("Something went wrong! Please try again."));
         }
         return $id;
@@ -302,6 +413,13 @@ class MakePaymentController extends Controller
             $notification_content['title'] = __("Make Payment From")." ".$user->fullname.' ' .$amount.' '.get_default_currency_code().' '.__("Successful").' ('.$receiver->username.')';
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('make_payment_receiver_charge_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'transaction_id' => $id,
+                'context' => 'user_web',
+                'message' => $e->getMessage(),
+            ]);
             throw new Exception(__("Something went wrong! Please try again."));
         }
     }
@@ -346,5 +464,18 @@ class MakePaymentController extends Controller
 
         }catch(Exception $e) {}
 
+    }
+
+    protected function resolveUserLevel($user): string
+    {
+        if ($user->is_sensitive) {
+            return 'sensitive';
+        }
+
+        if ($user->kyc_verified == GlobalConst::VERIFIED) {
+            return 'verified';
+        }
+
+        return 'standard';
     }
 }

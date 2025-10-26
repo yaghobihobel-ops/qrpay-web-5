@@ -9,6 +9,10 @@ use App\Http\Helpers\PushNotificationHelper;
 use App\Models\Admin\AdminLoginLogs;
 use App\Models\Admin\AdminNotification;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Security\DeviceFingerprintService;
+use App\Services\Security\SessionBindingService;
+use App\Models\DeviceFingerprint;
+use App\Traits\Security\LogsSecurityEvents;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -20,6 +24,7 @@ use Jenssegers\Agent\Agent;
 class LoginController extends Controller
 {
     use AuthenticatesUsers;
+    use LogsSecurityEvents;
 
     /**
      * Display The Amdin Login From Page
@@ -73,16 +78,18 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user)
     {
+        $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+        app(SessionBindingService::class)->bind($request, $user, $fingerprint);
         $user->update([
             'two_factor_verified'   => false,
         ]);
-        $this->createLoginLog($user);
+        $this->createLoginLog($user, $fingerprint);
         $this->updateInfo($user);
         return redirect()->intended(route('admin.dashboard'));
     }
 
 
-    protected function createLoginLog($admin) {
+    protected function createLoginLog($admin, ?DeviceFingerprint $fingerprint = null) {
 
         $client_ip = request()->ip() ?? false;
         $location = geoip()->getLocation($client_ip);
@@ -105,10 +112,21 @@ class LoginController extends Controller
             'timezone'      => $location['timezone'] ?? "",
             'browser'       => $agent->browser() ?? "",
             'os'            => $agent->platform() ?? "",
+            'device_fingerprint_id' => $fingerprint?->id,
         ];
 
         try{
             AdminLoginLogs::create($data);
+            $this->logSecurityInfo('admin_login_success', [
+                'admin_id' => $admin->id,
+                'fingerprint_id' => $fingerprint?->id,
+                'ip' => $client_ip,
+                'city' => $data['city'],
+                'country' => $data['country'],
+                'browser' => $data['browser'],
+                'os' => $data['os'],
+                'context' => 'admin_web',
+            ]);
             $notification_message = [
                 'title'   => $admin->fullname . "(" . $admin->username . ")" . " logged in.",
                 'time'      => Carbon::now()->diffForHumans(),
@@ -128,7 +146,11 @@ class LoginController extends Controller
                 ])->send();
             }catch(Exception $e) {}
         }catch(Exception $e) {
-            // return false;
+            $this->logSecurityError('admin_login_log_failed', [
+                'admin_id' => $admin->id,
+                'ip' => $client_ip,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -143,6 +165,20 @@ class LoginController extends Controller
      */
     protected function sendFailedLoginResponse(Request $request)
     {
+        $identifier = (string) $request->input('email');
+        $attempts = method_exists($this, 'limiter') ? $this->limiter()->attempts($this->throttleKey($request)) : 0;
+
+        $this->logSecurityWarning('admin_login_failed', [
+            'identifier' => $identifier,
+            'attempts' => $attempts,
+            'ip' => $request->ip(),
+            'context' => 'admin_web',
+        ]);
+
+        $this->notifyLoginThresholdExceeded($request, $identifier, $attempts, [
+            'context' => 'admin_web',
+        ]);
+
         throw ValidationException::withMessages([
             'credential' => [trans('auth.failed')],
         ]);

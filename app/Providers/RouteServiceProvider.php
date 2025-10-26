@@ -7,6 +7,7 @@ use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvi
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 class RouteServiceProvider extends ServiceProvider
 {
@@ -29,9 +30,9 @@ class RouteServiceProvider extends ServiceProvider
         $this->configureRateLimiting();
 
         $this->routes(function () {
-            Route::middleware(['system.maintenance.api','api'])
+            Route::middleware(['system.maintenance.api','api.version','api'])
                 ->prefix('api')
-                ->group(base_path('routes/api/api.php'));
+                ->group(base_path('routes/api.php'));
 
             Route::middleware(['system.maintenance.api','api'])
             ->prefix('merchant-api')
@@ -48,7 +49,7 @@ class RouteServiceProvider extends ServiceProvider
             Route::middleware(['web','auth','verification.guard','user.google.two.factor','system.maintenance'])
                 ->group(base_path('routes/user.php'));
 
-            Route::middleware(['web', 'auth:admin', 'app.mode', 'admin.role.guard',"admin.google.two.factor"])
+            Route::middleware(['web', 'auth:admin', 'app.mode', 'admin.role.guard',"admin.google.two.factor", 'admin.audit'])
                 ->group(base_path('routes/admin.php'));
 
             Route::middleware(['web','auth:merchant','verification.guard.merchant','merchant.google.two.factor','system.maintenance'])
@@ -97,6 +98,16 @@ class RouteServiceProvider extends ServiceProvider
             }
 
             return $limits;
+        });
+
+        RateLimiter::for('user-login', function (Request $request) {
+            $maxAttempts = (int) config('auth.rate_limits.user_login.max_attempts', 5);
+            $decaySeconds = (int) config('auth.rate_limits.user_login.decay_seconds', 60);
+            $minutes = max(1, (int) ceil($decaySeconds / 60));
+
+            return Limit::perMinutes($minutes, $maxAttempts)->by(
+                Str::lower($request->input('email', '')) . '|' . $request->ip()
+            );
         });
     }
 

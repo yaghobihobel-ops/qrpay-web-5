@@ -2,6 +2,7 @@
 
 namespace App\Models\Merchants;
 
+use App\Casts\EncryptedJson;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -14,7 +15,7 @@ class GatewaySetting extends Model
         'wallet_status'         => 'boolean',
         'virtual_card_status'   => 'boolean',
         'master_visa_status'    => 'boolean',
-        'credentials'           => 'object',
+        'credentials'           => EncryptedJson::class,
         'created_at'            => 'datetime',
         'updated_at'             => 'datetime',
     ];
