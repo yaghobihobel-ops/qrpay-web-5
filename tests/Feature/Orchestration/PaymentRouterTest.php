@@ -69,6 +69,7 @@ class PaymentRouterTest extends TestCase
             'priority' => 1,
             'fee' => 0.0120,
             'max_amount' => 1500,
+            'sla_thresholds' => null,
         ]);
 
         PaymentRoute::create([
@@ -78,6 +79,7 @@ class PaymentRouterTest extends TestCase
             'priority' => 2,
             'fee' => 0.0130,
             'max_amount' => 1500,
+            'sla_thresholds' => null,
         ]);
 
         $alipay = new AlipayAdapter();
@@ -91,6 +93,51 @@ class PaymentRouterTest extends TestCase
         ]);
 
         $result = $router->selectRoute($user, 'USD', 800, 'US');
+
+        $this->assertSame('BluBank', $result->getProvider()->getName());
+    }
+
+    public function test_it_switches_to_backup_provider_when_primary_breaches_sla_threshold(): void
+    {
+        $user = User::factory()->create();
+
+        PaymentRoute::create([
+            'provider' => 'Alipay',
+            'currency' => 'USD',
+            'destination_country' => 'US',
+            'priority' => 1,
+            'fee' => 0.0110,
+            'max_amount' => 1200,
+            'sla_thresholds' => [
+                'sla' => ['uptime' => 99.9, 'latency' => 200],
+                'kpi' => ['success_rate' => 0.99],
+            ],
+        ]);
+
+        PaymentRoute::create([
+            'provider' => 'BluBank',
+            'currency' => 'USD',
+            'destination_country' => 'US',
+            'priority' => 2,
+            'fee' => 0.0130,
+            'max_amount' => 2000,
+            'sla_thresholds' => [
+                'sla' => ['uptime' => 99.0, 'latency' => 300],
+                'kpi' => ['success_rate' => 0.95],
+            ],
+        ]);
+
+        $alipay = new AlipayAdapter();
+        $alipay->updateSlaProfile(['uptime' => 98.2, 'latency' => 280]);
+        $alipay->updateKpiMetrics(['success_rate' => 0.93]);
+
+        $router = new PaymentRouter([
+            $alipay,
+            new BluBankAdapter(),
+            new YoomoneaAdapter(),
+        ]);
+
+        $result = $router->selectRoute($user, 'USD', 600, 'US');
 
         $this->assertSame('BluBank', $result->getProvider()->getName());
     }

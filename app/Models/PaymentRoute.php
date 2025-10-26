@@ -16,11 +16,13 @@ class PaymentRoute extends Model
         'priority',
         'fee',
         'max_amount',
+        'sla_thresholds',
     ];
 
     protected $casts = [
         'priority' => 'integer',
         'fee' => 'decimal:4',
         'max_amount' => 'decimal:2',
+        'sla_thresholds' => 'array',
     ];
 }

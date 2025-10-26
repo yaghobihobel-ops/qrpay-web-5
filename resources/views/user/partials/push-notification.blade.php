@@ -67,3 +67,17 @@
 <script>
 
 </script>
+
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('{{ asset('public/service-worker.js') }}')
+                .then(function (registration) {
+                    return registration;
+                })
+                .catch(function (error) {
+                    console.error('Service worker registration failed', error);
+                });
+        });
+    }
+</script>

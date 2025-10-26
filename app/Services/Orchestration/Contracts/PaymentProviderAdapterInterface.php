@@ -13,4 +13,8 @@ interface PaymentProviderAdapterInterface
     public function getSlaProfile(?User $user, string $currency, string $destinationCountry): array;
 
     public function getKpiMetrics(?User $user, string $currency, string $destinationCountry): array;
+
+    public function updateSlaProfile(array $profile): void;
+
+    public function updateKpiMetrics(array $metrics): void;
 }

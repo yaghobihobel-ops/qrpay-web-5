@@ -42,4 +42,14 @@ abstract class AbstractPaymentProviderAdapter implements PaymentProviderAdapterI
     {
         return $this->kpiMetrics;
     }
+
+    public function updateSlaProfile(array $profile): void
+    {
+        $this->slaProfile = array_merge($this->slaProfile, $profile);
+    }
+
+    public function updateKpiMetrics(array $metrics): void
+    {
+        $this->kpiMetrics = array_merge($this->kpiMetrics, $metrics);
+    }
 }
