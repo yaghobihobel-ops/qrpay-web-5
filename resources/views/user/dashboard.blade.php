@@ -120,6 +120,110 @@
             </div>
         </div>
     </div>
+    @if(!empty($loyaltySummary))
+        <div class="loyalty-area mt-20">
+            <div class="dashboard-header-wrapper">
+                <h4 class="title">{{ __("Loyalty & Rewards") }}</h4>
+                <span class="badge badge--base text-uppercase">{{ data_get($loyaltySummary, 'tier.label') }}</span>
+            </div>
+            <div class="row mb-20-none">
+                <div class="col-xxl-4 col-xl-4 col-lg-12 mb-20">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">{{ __("Points Overview") }}</h5>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <p class="fs-14 text-muted mb-1">{{ __("Available Points") }}</p>
+                                    <h3 class="mb-0">{{ number_format(data_get($loyaltySummary, 'balance', 0)) }}</h3>
+                                </div>
+                                <div class="text-end">
+                                    <p class="fs-14 text-muted mb-1">{{ __("Lifetime Points") }}</p>
+                                    <h5 class="mb-0">{{ number_format(data_get($loyaltySummary, 'lifetime', 0)) }}</h5>
+                                </div>
+                            </div>
+                            @if(data_get($loyaltySummary, 'next_tier'))
+                                <div class="mt-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <span class="text-muted">{{ __("Progress to next tier") }}</span>
+                                        <span class="fw-bold">{{ data_get($loyaltySummary, 'progress_to_next', 0) }}%</span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg--base" role="progressbar" style="width: {{ data_get($loyaltySummary, 'progress_to_next', 0) }}%;" aria-valuenow="{{ data_get($loyaltySummary, 'progress_to_next', 0) }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                    <p class="fs-13 text-muted mt-2 mb-0">{{ __("Only :points pts away from :tier", ['points' => number_format(data_get($loyaltySummary, 'points_to_next', 0)), 'tier' => data_get($loyaltySummary, 'next_tier.label')]) }}</p>
+                                </div>
+                            @else
+                                <p class="fs-13 text-muted mt-3 mb-0">{{ __("You unlocked the top tier! Enjoy all premium rewards.") }}</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xxl-4 col-xl-4 col-lg-6 mb-20">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">{{ __("Next Best Actions") }}</h5>
+                            <ul class="list-group list-group-flush">
+                                @forelse(data_get($loyaltySummary, 'suggested_actions', []) as $action)
+                                    <li class="list-group-item px-0">{{ $action }}</li>
+                                @empty
+                                    <li class="list-group-item px-0 text-muted">{{ __("No actions required right now.") }}</li>
+                                @endforelse
+                            </ul>
+                            <div class="mt-4">
+                                <h6 class="mb-2">{{ __("Recent Activity") }}</h6>
+                                <ul class="list-unstyled mb-0">
+                                    @forelse(data_get($loyaltySummary, 'recent_events', []) as $event)
+                                        <li class="mb-2">
+                                            <div class="d-flex justify-content-between">
+                                                <span class="fw-bold text-capitalize">{{ str_replace('_', ' ', data_get($event, 'event_type')) }}</span>
+                                                <span class="text--base">{{ data_get($event, 'points_change') }}</span>
+                                            </div>
+                                            <small class="text-muted">{{ data_get($event, 'occurred_at')?->diffForHumans() }}</small>
+                                        </li>
+                                    @empty
+                                        <li class="text-muted">{{ __("No reward history yet.") }}</li>
+                                    @endforelse
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xxl-4 col-xl-4 col-lg-6 mb-20">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">{{ __("Special Offers & Campaigns") }}</h5>
+                            <div class="mb-3">
+                                <h6 class="text-uppercase text-muted fs-12">{{ __("Featured Offers") }}</h6>
+                                <ul class="list-unstyled mb-0">
+                                    @forelse($specialOffers as $offer)
+                                        <li class="mb-3">
+                                            <div class="fw-bold">{{ $offer->name }}</div>
+                                            <small class="text-muted">{{ \Illuminate\Support\Str::limit($offer->message_template, 120) }}</small>
+                                        </li>
+                                    @empty
+                                        <li class="text-muted">{{ __("No featured offers available right now.") }}</li>
+                                    @endforelse
+                                </ul>
+                            </div>
+                            <div>
+                                <h6 class="text-uppercase text-muted fs-12">{{ __("Recommended For You") }}</h6>
+                                <ul class="list-unstyled mb-0">
+                                    @forelse($campaignRecommendations as $campaign)
+                                        <li class="mb-3">
+                                            <div class="fw-bold">{{ $campaign->name }}</div>
+                                            <small class="text-muted">{{ \Illuminate\Support\Str::limit($campaign->message_template, 100) }}</small>
+                                        </li>
+                                    @empty
+                                        <li class="text-muted">{{ __("We will surface new campaigns as they launch.") }}</li>
+                                    @endforelse
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
     <div class="chart-area mt-30">
         <div class="row mb-20-none">
             <div class="col-xxl-7 col-xl-7 col-lg-7 mb-20">
