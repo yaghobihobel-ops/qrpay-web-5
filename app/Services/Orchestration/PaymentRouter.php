@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Services\Orchestration\Contracts\PaymentProviderAdapterInterface;
 use App\Services\Orchestration\DTO\PaymentRouteResult;
 use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
+use App\Services\Pricing\FeeEngine;
+use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
 use Illuminate\Support\Collection;
 
 class PaymentRouter
@@ -14,14 +16,18 @@ class PaymentRouter
     /** @var array<string, PaymentProviderAdapterInterface> */
     private array $providers = [];
 
+    private ?FeeEngine $feeEngine = null;
+
     /**
      * @param iterable<PaymentProviderAdapterInterface> $providers
      */
-    public function __construct(iterable $providers = [])
+    public function __construct(iterable $providers = [], ?FeeEngine $feeEngine = null)
     {
         foreach ($providers as $provider) {
             $this->registerProvider($provider);
         }
+
+        $this->feeEngine = $feeEngine;
     }
 
     public function registerProvider(PaymentProviderAdapterInterface $provider): void
@@ -42,10 +48,13 @@ class PaymentRouter
         string $currency,
         float $amount,
         string $destinationCountry,
-        array $slaPolicies = []
+        array $slaPolicies = [],
+        array $pricingContext = []
     ): PaymentRouteResult {
         $currency = strtoupper($currency);
         $destinationCountry = strtoupper($destinationCountry);
+        $transactionType = $pricingContext['transaction_type'] ?? '*';
+        $userLevel = $pricingContext['user_level'] ?? 'standard';
 
         $routes = PaymentRoute::query()
             ->where('currency', $currency)
@@ -77,7 +86,9 @@ class PaymentRouter
                 continue;
             }
 
-            return new PaymentRouteResult($provider, $route, $slaProfile, $kpiMetrics);
+            $feeQuote = $this->buildFeeQuote($route, $currency, $amount, $transactionType, $userLevel);
+
+            return new PaymentRouteResult($provider, $route, $slaProfile, $kpiMetrics, $feeQuote);
         }
 
         throw new NoAvailablePaymentRouteException('No payment routes matched the requested criteria.');
@@ -107,5 +118,29 @@ class PaymentRouter
         }
 
         return true;
+    }
+
+    private function buildFeeQuote(
+        PaymentRoute $route,
+        string $currency,
+        float $amount,
+        string $transactionType,
+        string $userLevel
+    ) {
+        if (! $this->feeEngine) {
+            return null;
+        }
+
+        try {
+            return $this->feeEngine->quote(
+                currency: $currency,
+                provider: $route->provider,
+                transactionType: $transactionType,
+                userLevel: $userLevel,
+                amount: $amount
+            );
+        } catch (PricingRuleNotFoundException $exception) {
+            return null;
+        }
     }
 }

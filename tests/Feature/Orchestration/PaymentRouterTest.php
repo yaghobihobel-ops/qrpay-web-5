@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Orchestration;
 
+use App\Models\FeeTier;
 use App\Models\PaymentRoute;
+use App\Models\PricingRule;
 use App\Models\User;
 use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
 use App\Services\Orchestration\PaymentRouter;
@@ -10,7 +12,10 @@ use App\Services\Orchestration\Providers\AlipayAdapter;
 use App\Services\Orchestration\Providers\BluBankAdapter;
 use App\Services\Orchestration\Providers\GenericPspAdapter;
 use App\Services\Orchestration\Providers\YoomoneaAdapter;
+use App\Services\Pricing\DTO\FeeQuote;
+use App\Services\Pricing\FeeEngine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 class PaymentRouterTest extends TestCase
@@ -107,5 +112,59 @@ class PaymentRouterTest extends TestCase
         ]);
 
         $router->selectRoute($user, 'EUR', 100, 'FR');
+    }
+
+    public function test_it_attaches_fee_quote_when_fee_engine_available(): void
+    {
+        $user = User::factory()->create();
+
+        PaymentRoute::create([
+            'provider' => 'Alipay',
+            'currency' => 'USD',
+            'destination_country' => 'US',
+            'priority' => 1,
+            'fee' => 0.0100,
+            'max_amount' => 1000,
+        ]);
+
+        $rule = PricingRule::factory()->create([
+            'provider' => 'Alipay',
+            'currency' => 'USD',
+            'transaction_type' => 'make-payment',
+            'user_level' => 'standard',
+        ]);
+
+        FeeTier::factory()->create([
+            'pricing_rule_id' => $rule->id,
+            'min_amount' => 0,
+            'max_amount' => null,
+            'percent_fee' => 1,
+            'fixed_fee' => 0.5,
+            'priority' => 1,
+        ]);
+
+        $feeEngine = Mockery::mock(FeeEngine::class);
+        $feeEngine->shouldReceive('quote')->once()->andReturn(
+            new FeeQuote('USD', 'Alipay', 'make-payment', 'standard', 100.0, 2.5, 0.5, 2.0, 1.0, 1.0, $rule)
+        );
+
+        $router = new PaymentRouter([
+            new AlipayAdapter(),
+        ], $feeEngine);
+
+        $result = $router->selectRoute($user, 'USD', 100, 'US', [], [
+            'transaction_type' => 'make-payment',
+            'user_level' => 'standard',
+        ]);
+
+        $this->assertNotNull($result->getFeeQuote());
+        $this->assertSame('Alipay', $result->getFeeQuote()->provider);
+        $this->assertSame(2.5, $result->getFeeQuote()->totalFee);
+    }
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
     }
 }
