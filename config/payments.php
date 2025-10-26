@@ -1,9 +1,11 @@
 <?php
 
-use App\Services\Payments\Regional\CnyGateway;
-use App\Services\Payments\Regional\IranCryptoGateway;
-use App\Services\Payments\Regional\RubGateway;
-use App\Services\Payments\Regional\TryGateway;
+return [
+    'feature_flags' => [
+        'alipay' => filter_var(env('FEATURE_PAYMENTS_ALIPAY', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+        'yoomonea' => filter_var(env('FEATURE_PAYMENTS_YOOMONEA', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+        'sandbox' => filter_var(env('FEATURE_PAYMENTS_SANDBOX', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
+    ],
 
 return [
     'regional_providers' => [
@@ -49,5 +51,10 @@ return [
             'connector_bank' => env('PAY_RUB_CORRESPONDENT_BANK'),
             'callback_url' => env('PAY_RUB_CALLBACK_URL'),
         ],
+    ],
+
+    'sandbox' => [
+        'allow_mock_signatures' => filter_var(env('PAYMENTS_SANDBOX_ALLOW_SIGNATURES', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
+        'default_response_delay' => env('PAYMENTS_SANDBOX_DELAY_MS', 150),
     ],
 ];
