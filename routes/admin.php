@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\ContactMessageController;
 use App\Http\Controllers\Admin\CookieController;
 use App\Http\Controllers\Admin\CountryRestrictionController;
 use App\Http\Controllers\Admin\CryptoAssetController;
+use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\ExtensionsController;
 use App\Http\Controllers\Admin\FrontendHeaderSectionController;
 use App\Http\Controllers\Admin\HelpContentAnalyticsController;
@@ -76,7 +77,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('notifications/clear','notificationsClear')->name('notifications.clear');
     });
 
-    Route::get('api-guide', [ApiHelpController::class, 'index'])->name('api.guide');
+    Route::controller(AuditLogController::class)->prefix('audit-logs')->name('audit.logs.')->group(function () {
+        Route::get('', 'index')->name('index');
+    });
     // Admin Profile
     Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
         Route::get('index', 'index')->name('index');
