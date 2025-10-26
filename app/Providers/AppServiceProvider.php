@@ -28,12 +28,18 @@ class AppServiceProvider extends ServiceProvider
     */
     public function register()
     {
-        $this->app->singleton(StrowalletVirtualCardService::class, function () {
-            return new StrowalletVirtualCardService(new Client());
-        });
+        foreach (config('payments.providers', []) as $provider) {
+            $class = $provider['class'] ?? null;
+            if (!$class) {
+                continue;
+            }
 
-        $this->app->bind(VirtualCardProviderInterface::class, StrowalletVirtualCardService::class);
-        $this->app->bind(KycProviderInterface::class, StrowalletVirtualCardService::class);
+            $config = $provider['config'] ?? [];
+
+            $this->app->bind($class, function ($app) use ($class, $config) {
+                return new $class($config);
+            });
+        }
     }
 
     /**

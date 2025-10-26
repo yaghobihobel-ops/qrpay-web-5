@@ -27,11 +27,14 @@ use Illuminate\Support\Facades\Route;
 use App\Traits\PaymentGateway\Tatum;
 use App\Traits\PaymentGateway\PerfectMoney;
 use App\Traits\PaymentGateway\PaystackTrait;
+use App\Services\Payments\PaymentProviderInterface;
+use App\Services\Payments\PaymentProviderResolver;
 
 class PaymentGateway {
 
     use Paypal,Stripe,Manual,FlutterwaveTrait,RazorTrait,PagaditoTrait,SslcommerzTrait,CoinGate,Tatum,PerfectMoney,PaystackTrait;
 
+    protected PaymentProviderResolver $providerResolver;
     protected $request_data;
     protected $output;
     protected $currency_input_name = "currency";
@@ -42,15 +45,22 @@ class PaymentGateway {
 
     protected ?RegionalPaymentManager $regionalManager = null;
 
-
-    public function __construct(array $request_data, ?RegionalPaymentManager $regionalManager = null)
+    public function __construct(PaymentProviderResolver $providerResolver)
     {
-        $this->request_data = $request_data;
-        $this->regionalManager = $regionalManager;
+        $this->providerResolver = $providerResolver;
+        $this->request_data = [];
     }
 
     public static function init(array $data) {
-        return new PaymentGateway($data);
+        /** @var self $instance */
+        $instance = app(self::class);
+        return $instance->setRequestData($data);
+    }
+
+    public function setRequestData(array $data): self
+    {
+        $this->request_data = $data;
+        return $this;
     }
 
     protected function getRegionalManager(): ?RegionalPaymentManager
@@ -233,15 +243,20 @@ class PaymentGateway {
         if(!$gateway) $gateway = $this->output['gateway'];
         $alias = Str::lower($gateway->alias);
         if($gateway->type == PaymentGatewayConst::AUTOMATIC){
-            $method = PaymentGatewayConst::register($alias);
+            $serviceId = PaymentGatewayConst::register($alias);
         }elseif($gateway->type == PaymentGatewayConst::MANUAL){
-            $method = PaymentGatewayConst::register(strtolower($gateway->type));
+            $serviceId = PaymentGatewayConst::register(strtolower($gateway->type));
         }
 
-        if(method_exists($this,$method)) {
-            return $method;
+        if(!$serviceId) {
+            throw new Exception("Gateway(".$gateway->name.") provider is not registered");
         }
-        return throw new Exception("Gateway(".$gateway->name.") Trait or Method (".$method."()) does not exists");
+
+        $provider = $this->providerResolver->resolve($serviceId);
+        $this->output['provider'] = $provider;
+        $this->output['provider_method'] = $provider->defaultInitializeMethod();
+
+        return $provider;
     }
     public function amount() {
         $currency = $this->output['currency'] ?? null;
@@ -327,8 +342,15 @@ class PaymentGateway {
             }
         }
 
-        $distributeMethod = $this->output['distribute'];
-        return $this->$distributeMethod($output) ?? throw new Exception(__("Something went wrong! Please try again."));
+        $provider = $this->output['provider'] ?? null;
+        if(!$provider instanceof PaymentProviderInterface) {
+            throw new Exception(__('Payment provider not available.'));
+        }
+
+        return $provider->initialize($this, [
+            'output' => $output,
+            'method' => $this->output['provider_method'] ?? null,
+        ]);
     }
     public function authenticateTempData()
     {
@@ -397,47 +419,14 @@ class PaymentGateway {
         $this->gateway();
         $this->output['tempData'] = $tempData;
 
-        if($type == 'flutterWave'){
-            if(method_exists(FlutterwaveTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'razorpay'){
-            if(method_exists(RazorTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'pagadito'){
-            if(method_exists(PagaditoTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'stripe'){
-            if(method_exists(Stripe::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'sslcommerz'){
-            if(method_exists(SslcommerzTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'coingate'){
-            if(method_exists(CoinGate::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'tatum'){
-            if(method_exists(TATUM::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'perfect-money'){
-            if(method_exists(PerfectMoney::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'paystack'){
-            if(method_exists(PaystackTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }else{
-            if(method_exists(Paypal::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
+        $provider = $this->output['provider'] ?? null;
+        if($provider instanceof PaymentProviderInterface) {
+            return $provider->capture($this, [
+                'method' => $method_name,
+                'payload' => $this->output,
+            ]);
         }
+
         throw new Exception("Response method ".$method_name."() does not exists.");
     }
 

@@ -1,60 +1,80 @@
 <?php
 
 return [
-    'feature_flags' => [
-        'alipay' => filter_var(env('FEATURE_PAYMENTS_ALIPAY', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
-        'yoomonea' => filter_var(env('FEATURE_PAYMENTS_YOOMONEA', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
-        'sandbox' => filter_var(env('FEATURE_PAYMENTS_SANDBOX', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
-    ],
-
-return [
-    'regional_providers' => [
-        'iran_crypto' => [
-            'name' => 'Iran Crypto Gateway',
-            'class' => IranCryptoGateway::class,
-            'currency' => 'IRR',
-            'api_url' => env('PAY_IRAN_CRYPTO_API_URL', 'https://api.example.ir/payments'),
-            'api_key' => env('PAY_IRAN_CRYPTO_API_KEY'),
-            'merchant_id' => env('PAY_IRAN_CRYPTO_MERCHANT_ID'),
-            'network' => env('PAY_IRAN_CRYPTO_NETWORK', 'mainnet'),
-            'settlement_account' => env('PAY_IRAN_CRYPTO_SETTLEMENT_ACCOUNT'),
-            'callback_url' => env('PAY_IRAN_CRYPTO_CALLBACK_URL'),
+    'providers' => [
+        'paypal' => [
+            'class' => App\Services\Payments\PaypalPaymentProvider::class,
+            'config' => [
+                'timeout' => env('PAYPAL_TIMEOUT', 30),
+                'base_uri' => env('PAYPAL_BASE_URI'),
+            ],
         ],
-        'china_mainland' => [
-            'name' => 'Mainland China Gateway',
-            'class' => CnyGateway::class,
-            'currency' => 'CNY',
-            'api_url' => env('PAY_CNY_API_URL', 'https://cn.example.com/api'),
-            'api_key' => env('PAY_CNY_API_KEY'),
-            'merchant_id' => env('PAY_CNY_MERCHANT_ID'),
-            'connector_bank' => env('PAY_CNY_CONNECTOR_BANK'),
-            'callback_url' => env('PAY_CNY_CALLBACK_URL'),
+        'stripe' => [
+            'class' => App\Services\Payments\StripePaymentProvider::class,
+            'config' => [
+                'timeout' => env('STRIPE_TIMEOUT', 30),
+                'base_uri' => env('STRIPE_BASE_URI'),
+            ],
         ],
-        'turkey_bank' => [
-            'name' => 'Turkey Banking Gateway',
-            'class' => TryGateway::class,
-            'currency' => 'TRY',
-            'api_url' => env('PAY_TRY_API_URL', 'https://tr.example.com/api'),
-            'api_key' => env('PAY_TRY_API_KEY'),
-            'merchant_id' => env('PAY_TRY_MERCHANT_ID'),
-            'network' => env('PAY_TRY_INTERBANK_NETWORK', 'eft'),
-            'connector_bank' => env('PAY_TRY_CORRESPONDENT_BANK'),
-            'callback_url' => env('PAY_TRY_CALLBACK_URL'),
+        'manual' => [
+            'class' => App\Services\Payments\ManualPaymentProvider::class,
+            'config' => [],
         ],
-        'russia_settlement' => [
-            'name' => 'Russia Settlement Gateway',
-            'class' => RubGateway::class,
-            'currency' => 'RUB',
-            'api_url' => env('PAY_RUB_API_URL', 'https://ru.example.com/api'),
-            'api_key' => env('PAY_RUB_API_KEY'),
-            'merchant_id' => env('PAY_RUB_MERCHANT_ID'),
-            'connector_bank' => env('PAY_RUB_CORRESPONDENT_BANK'),
-            'callback_url' => env('PAY_RUB_CALLBACK_URL'),
+        'flutterwave' => [
+            'class' => App\Services\Payments\FlutterwavePaymentProvider::class,
+            'config' => [
+                'timeout' => env('FLUTTERWAVE_TIMEOUT', 30),
+                'base_uri' => env('FLUTTERWAVE_BASE_URI'),
+            ],
         ],
-    ],
-
-    'sandbox' => [
-        'allow_mock_signatures' => filter_var(env('PAYMENTS_SANDBOX_ALLOW_SIGNATURES', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
-        'default_response_delay' => env('PAYMENTS_SANDBOX_DELAY_MS', 150),
+        'razorpay' => [
+            'class' => App\Services\Payments\RazorpayPaymentProvider::class,
+            'config' => [
+                'timeout' => env('RAZORPAY_TIMEOUT', 30),
+                'base_uri' => env('RAZORPAY_BASE_URI'),
+            ],
+        ],
+        'pagadito' => [
+            'class' => App\Services\Payments\PagaditoPaymentProvider::class,
+            'config' => [
+                'timeout' => env('PAGADITO_TIMEOUT', 30),
+                'base_uri' => env('PAGADITO_BASE_URI'),
+            ],
+        ],
+        'sslcommerz' => [
+            'class' => App\Services\Payments\SslcommerzPaymentProvider::class,
+            'config' => [
+                'timeout' => env('SSLCOMMERZ_TIMEOUT', 30),
+                'base_uri' => env('SSLCOMMERZ_BASE_URI'),
+            ],
+        ],
+        'coingate' => [
+            'class' => App\Services\Payments\CoingatePaymentProvider::class,
+            'config' => [
+                'timeout' => env('COINGATE_TIMEOUT', 30),
+                'base_uri' => env('COINGATE_BASE_URI'),
+            ],
+        ],
+        'tatum' => [
+            'class' => App\Services\Payments\TatumPaymentProvider::class,
+            'config' => [
+                'timeout' => env('TATUM_TIMEOUT', 30),
+                'base_uri' => env('TATUM_BASE_URI'),
+            ],
+        ],
+        'perfect-money' => [
+            'class' => App\Services\Payments\PerfectMoneyPaymentProvider::class,
+            'config' => [
+                'timeout' => env('PERFECT_MONEY_TIMEOUT', 30),
+                'base_uri' => env('PERFECT_MONEY_BASE_URI'),
+            ],
+        ],
+        'paystack' => [
+            'class' => App\Services\Payments\PaystackPaymentProvider::class,
+            'config' => [
+                'timeout' => env('PAYSTACK_TIMEOUT', 30),
+                'base_uri' => env('PAYSTACK_BASE_URI'),
+            ],
+        ],
     ],
 ];
