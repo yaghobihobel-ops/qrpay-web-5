@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\User\StrowalletVirtualCardController;
 use App\Http\Helpers\Api\Helpers;
 use App\Models\Admin\SetupKyc;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Http\Controllers\Api\Support\SupportBotController;
+use App\Http\Controllers\Api\Support\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 /*
@@ -72,6 +74,13 @@ Route::get('get/basic/data', function() {
 Route::controller(AppSettingsController::class)->prefix("app-settings")->group(function(){
     Route::get('/','appSettings');
     Route::get('languages','languages')->withoutMiddleware(['system.maintenance.api']);
+});
+
+Route::prefix('support')->group(function () {
+    Route::post('bot/message', [SupportBotController::class, 'message']);
+    Route::post('tickets', [SupportTicketController::class, 'store']);
+    Route::get('tickets/{token}', [SupportTicketController::class, 'show']);
+    Route::post('tickets/{token}/feedback', [SupportTicketController::class, 'feedback']);
 });
 
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->get('analytics/kpis', KpiController::class);
