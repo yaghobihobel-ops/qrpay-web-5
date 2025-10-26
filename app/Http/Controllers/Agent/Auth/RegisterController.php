@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Auth\Events\Registered;
 use App\Notifications\User\Auth\SendVerifyCode;
 use App\Providers\Admin\ExtensionProvider;
@@ -311,10 +310,7 @@ class RegisterController extends Controller
      */
     public function validator(array $data) {
         $basic_settings = $this->basic_settings;
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->agent_secure_password) {
-            $passowrd_rule = ["required","confirmed",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised()];
-        }
+        $passowrd_rule = security_password_rules();
         if($basic_settings->agent_agree_policy){
             $agree = 'required';
         }else{

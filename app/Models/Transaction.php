@@ -51,6 +51,9 @@ class Transaction extends Model
         'status' => 'integer',
         'details' => 'object',
         'reject_reason' => 'string',
+        'risk_decision' => 'string',
+        'risk_score' => 'float',
+        'risk_metadata' => 'array',
     ];
 
     public function user()

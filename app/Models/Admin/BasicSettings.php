@@ -2,6 +2,7 @@
 
 namespace App\Models\Admin;
 
+use App\Casts\EncryptedJson;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,9 +13,9 @@ class BasicSettings extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'mail_config'                   => 'object',
-        'push_notification_config'      => 'object',
-        'broadcast_config'              => 'object',
+        'mail_config'                   => EncryptedJson::class,
+        'push_notification_config'      => EncryptedJson::class,
+        'broadcast_config'              => EncryptedJson::class,
         'email_verification'            => 'boolean',
         'email_notification'            => 'boolean',
         'kyc_verification'              => 'boolean',

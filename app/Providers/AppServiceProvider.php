@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Payout\FlutterwavePayoutService;
 use App\Services\Payout\PayoutProviderInterface;
@@ -42,6 +44,45 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        Transaction::observe(TransactionObserver::class);
+    }
+
+    protected function registerResponseMacros(): void
+    {
+        ResponseFacade::macro('success', function (string $message, mixed $details = null, int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('error', function (string $message, ApiErrorCode|int $code = ApiErrorCode::UNKNOWN, mixed $details = null, int $status = 400) {
+            $code = $code instanceof ApiErrorCode ? $code->value : $code;
+
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('paginated', function (LengthAwarePaginator $paginator, string $message = 'Fetched successfully.', int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => [
+                    'data' => $paginator->items(),
+                    'meta' => [
+                        'current_page' => $paginator->currentPage(),
+                        'per_page' => $paginator->perPage(),
+                        'total' => $paginator->total(),
+                        'last_page' => $paginator->lastPage(),
+                    ],
+                ],
+            ], $status);
+        });
     }
 
     /**
