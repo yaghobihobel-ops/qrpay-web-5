@@ -8,6 +8,16 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 class Kernel extends ConsoleKernel
 {
     /**
+     * The Artisan commands provided by your application.
+     *
+     * @var array<int, class-string>
+     */
+    protected $commands = [
+        \App\Console\Commands\DispatchAnalyticsEvent::class,
+        \App\Console\Commands\RotateApiKeys::class,
+    ];
+
+    /**
      * Define the application's command schedule.
      *
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
@@ -21,7 +31,7 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping();
 
         $schedule->command('currency:update')->daily();
-        $schedule->command('audit:enforce-retention')->dailyAt('01:00');
+        $schedule->command('monitoring:health-check')->everyFiveMinutes()->withoutOverlapping();
     }
 
     /**

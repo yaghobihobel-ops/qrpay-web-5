@@ -19,7 +19,7 @@
     </div>
     <div class="page-change-area">
         <div class="navigation-wrapper">
-            <a href="{{ setRoute('developer.prerequisites') }}" class="right">{{ __("Prerequisites") }} <i class="las la-arrow-right ms-1"></i></a>
+            <a href="{{ setRoute('developer.quickstart') }}" class="right">{{ __("Quick Start") }} <i class="las la-arrow-right ms-1"></i></a>
         </div>
 
     </div>

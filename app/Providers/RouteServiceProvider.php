@@ -7,6 +7,7 @@ use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvi
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 class RouteServiceProvider extends ServiceProvider
 {
@@ -81,9 +82,67 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting()
     {
-        RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        $this->registerApiRateLimiter('api');
+        $this->registerApiRateLimiter('merchant-api');
+        $this->registerApiRateLimiter('agent-api');
+    }
+
+    protected function registerApiRateLimiter(string $name): void
+    {
+        RateLimiter::for($name, function (Request $request) {
+            $service = $request->route()?->defaults['throttle_service'] ?? 'default';
+            $limits = $this->buildLimits($service, $request);
+
+            if (count($limits) === 0) {
+                return Limit::none();
+            }
+
+            return $limits;
         });
+
+        RateLimiter::for('user-login', function (Request $request) {
+            $maxAttempts = (int) config('auth.rate_limits.user_login.max_attempts', 5);
+            $decaySeconds = (int) config('auth.rate_limits.user_login.decay_seconds', 60);
+            $minutes = max(1, (int) ceil($decaySeconds / 60));
+
+            return Limit::perMinutes($minutes, $maxAttempts)->by(
+                Str::lower($request->input('email', '')) . '|' . $request->ip()
+            );
+        });
+    }
+
+    protected function buildLimits(string $service, Request $request): array
+    {
+        $config = config('api.rate_limits.services', []);
+        $serviceConfig = array_replace_recursive($config['default'] ?? [], $config[$service] ?? []);
+
+        $limits = [];
+
+        if (! empty($serviceConfig['per_user']['max_attempts'])) {
+            $limits[] = $this->buildLimit(
+                $serviceConfig['per_user'],
+                $request->user()?->getAuthIdentifier() ?: 'guest:'.$request->ip()
+            );
+        }
+
+        if (! empty($serviceConfig['per_ip']['max_attempts'])) {
+            $limits[] = $this->buildLimit($serviceConfig['per_ip'], $request->ip());
+        }
+
+        return array_filter($limits);
+    }
+
+    protected function buildLimit(array $config, string $key): ?Limit
+    {
+        $maxAttempts = (int) ($config['max_attempts'] ?? 0);
+
+        if ($maxAttempts <= 0) {
+            return null;
+        }
+
+        $decayMinutes = max(1, (int) ($config['decay_minutes'] ?? 1));
+
+        return Limit::perMinutes($decayMinutes, $maxAttempts)->by($key);
     }
 
     /**

@@ -2,7 +2,10 @@
 
     <div class="custom-card mt-30">
         <div class="dashboard-header-wrapper">
-            <h4 class="title">{{ __("KYC Information") }} &nbsp; <span class="{{ auth()->user()->kycStringStatus->class }}">{{ __(auth()->user()->kycStringStatus->value) }}</span></h4>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h4 class="title mb-0">{{ __("KYC Information") }} &nbsp; <span class="{{ auth()->user()->kycStringStatus->class }}">{{ __(auth()->user()->kycStringStatus->value) }}</span></h4>
+                @include('user.components.help-icon', ['section' => 'kyc'])
+            </div>
         </div>
         <div class="card-body">
             @if (auth()->user()->kyc_verified == global_const()::PENDING)

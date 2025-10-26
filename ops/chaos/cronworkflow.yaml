@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: weekly-chaos-validation
+  namespace: chaos
+spec:
+  schedule: "0 2 * * 1"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  workflowSpec:
+    entrypoint: execute-chaos
+    templates:
+      - name: execute-chaos
+        steps:
+          - - name: select-experiment
+              template: choose-experiment
+          - - name: run-chaos
+              templateRef:
+                name: litmus-chaos
+                template: run
+              arguments:
+                parameters:
+                  - name: engine-name
+                    value: payment-chaos
+                  - name: experiment-name
+                    value: "{{steps.select-experiment.outputs.parameters.experiment}}"
+      - name: choose-experiment
+        script:
+          image: python:3.11-slim
+          command: [python]
+          source: |
+            import random
+            experiments = ["pod-delete", "pod-network-latency"]
+            print(random.choice(experiments))
+          env:
+            - name: CHAOS_NAMESPACE
+              value: chaos
+          outputs:
+            parameters:
+              - name: experiment
+                valueFrom:
+                  path: /tmp/outputs/stdout
