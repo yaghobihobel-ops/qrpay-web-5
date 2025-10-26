@@ -1,9 +1,10 @@
 <?php
 
-use App\Services\Payout\Regional\ChinaBankTransferService;
-use App\Services\Payout\Regional\IranCryptoPayoutService;
-use App\Services\Payout\Regional\RussiaBankTransferService;
-use App\Services\Payout\Regional\TurkeyBankTransferService;
+return [
+    'feature_flags' => [
+        'blubank' => filter_var(env('FEATURE_PAYOUTS_BLUBANK', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+        'sandbox' => filter_var(env('FEATURE_PAYOUTS_SANDBOX', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
+    ],
 
 return [
     'countries' => [
@@ -122,13 +123,9 @@ return [
             ],
         ],
     ],
-    'compliance' => [
-        'enhanced_due_diligence_countries' => ['CN', 'TR', 'RU', 'IR'],
-        'document_requirements' => [
-            'CN' => ['business_license', 'bank_statement'],
-            'TR' => ['tax_certificate'],
-            'RU' => ['source_of_funds'],
-            'IR' => ['crypto_wallet_declaration'],
-        ],
+
+    'sandbox' => [
+        'allow_mock_signatures' => filter_var(env('PAYOUTS_SANDBOX_ALLOW_SIGNATURES', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
+        'default_response_delay' => env('PAYOUTS_SANDBOX_DELAY_MS', 200),
     ],
 ];

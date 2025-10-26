@@ -9,11 +9,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
+use App\Traits\Auth\HasRolesAndPermissions;
 use App\Traits\User\UserPartials;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, UserPartials;
+    use HasApiTokens, HasFactory, Notifiable, UserPartials, HasRolesAndPermissions;
     protected $appends = ['fullname','userImage','stringStatus','lastLogin','kycStringStatus'];
     protected $dates = ['deleted_at'];
     /**
@@ -51,8 +52,9 @@ class User extends Authenticatable
         'stripe_connected_account'       => 'object',
         'remember_token'           => 'string',
         'strowallet_customer'       => 'object',
-        'is_sensitive'              => 'boolean',
-        'compliance_flags'          => 'array',
+        'preferred_theme' => 'string',
+        'preferred_language' => 'string',
+        'notification_preferences' => 'array',
         'deleted_at'           => 'datetime',
         'created_at'           => 'datetime',
         'updated_at'           => 'datetime',
@@ -156,6 +158,24 @@ class User extends Authenticatable
     public function passwordResets() {
         return $this->hasMany(UserPasswordReset::class,"user_id");
     }
+
+    public function getFeeLevel(): string
+    {
+        if (->is_sensitive) {
+            return "sensitive";
+        }
+
+        if ((int) ->kyc_verified === GlobalConst::VERIFIED) {
+            return "verified";
+        }
+
+        if ((int) ->email_verified === GlobalConst::VERIFIED) {
+            return "trusted";
+        }
+
+        return "standard";
+    }
+
 
     public function scopeGetSocial($query,$credentials) {
         return $query->where("email",$credentials);

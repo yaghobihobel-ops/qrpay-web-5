@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\DispatchAnalyticsEvent::class,
+        \App\Console\Commands\RotateApiKeys::class,
     ];
 
     /**
@@ -30,7 +31,7 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping();
 
         $schedule->command('currency:update')->daily();
-        $schedule->command('audit:enforce-retention')->dailyAt('01:00');
+        $schedule->command('monitoring:health-check')->everyFiveMinutes()->withoutOverlapping();
     }
 
     /**

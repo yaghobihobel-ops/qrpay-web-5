@@ -22,10 +22,12 @@ $siteWallet = str_replace(' ','_',$basic_settings->site_name)."_Wallet";
         <div class="col-xl-6 mb-30">
             <div class="dash-payment-item-wrapper">
                 <div class="dash-payment-item active">
-                    <div class="dash-payment-title-area d-flex align-items-center gap-2">
-                        <span class="dash-payment-badge">!</span>
-                        <h5 class="title mb-0">{{ __(@$page_title) }} {{ __("Form") }}</h5>
-                        <x-help.launcher section="exchange" :label="__('Exchange help')" />
+                    <div class="dash-payment-title-area d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="dash-payment-badge">!</span>
+                            <h5 class="title mb-0">{{ __(@$page_title) }} {{ __("Form") }}</h5>
+                        </div>
+                        @include('user.components.help-icon', ['section' => 'exchange'])
                     </div>
                     <div class="dash-payment-body">
                         <form class="card-form onload-from" action="{{ setRoute('user.remittance.confirmed') }}" method="POST">

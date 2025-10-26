@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: postmortem-
+  namespace: resilience
+spec:
+  entrypoint: build-report
+  arguments:
+    parameters:
+      - name: incident-payload
+        value: '{}'
+  templates:
+    - name: build-report
+      inputs:
+        parameters:
+          - name: incident-payload
+      container:
+        image: python:3.11-slim
+        command: ["python", "/scripts/generate_postmortem.py"]
+        args:
+          - "--incident"
+          - "{{inputs.parameters.incident-payload}}"
+          - "--datasource"
+          - /conf/datasources.yaml
+        env:
+          - name: PROMETHEUS_BEARER_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: observability-api-tokens
+                key: prometheus
+                optional: true
+          - name: LOKI_BEARER_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: observability-api-tokens
+                key: loki
+                optional: true
+          - name: TEMPO_BEARER_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: observability-api-tokens
+                key: tempo
+                optional: true
+        volumeMounts:
+          - name: postmortem-script
+            mountPath: /scripts
+          - name: datasources
+            mountPath: /conf
+      outputs:
+        artifacts:
+          - name: report
+            path: /tmp/postmortem/report.md
+    - name: archive-report
+      inputs:
+        artifacts:
+          - name: report
+            path: /tmp/postmortem/report.md
+      container:
+        image: amazon/aws-cli:2.13.0
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -euo pipefail
+            aws s3 cp /tmp/postmortem/report.md s3://qrpay-postmortems/reports/${WORKFLOW_NAME}.md
+  volumes:
+    - name: postmortem-script
+      configMap:
+        name: postmortem-scripts
+    - name: datasources
+      configMap:
+        name: postmortem-datasources

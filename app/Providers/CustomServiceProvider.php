@@ -22,9 +22,12 @@ use Illuminate\Support\ServiceProvider;
 use App\Providers\Admin\CurrencyProvider;
 use App\Providers\Admin\BasicSettingsProvider;
 use App\Providers\Admin\ExtensionProvider;
+use App\Traits\Audit\LogsAudit;
 
 class CustomServiceProvider extends ServiceProvider
 {
+    use LogsAudit;
+
     /**
      * Register services.
      *
@@ -33,6 +36,13 @@ class CustomServiceProvider extends ServiceProvider
     public function register()
     {
         $this->startingPoint();
+
+        $this->logAuditAction('custom_service_provider.register', [
+            'payload' => [
+                'starting_point' => config('starting-point.point'),
+            ],
+            'status' => 'success',
+        ]);
     }
 
     /**
@@ -83,8 +93,26 @@ class CustomServiceProvider extends ServiceProvider
                 return new ExtensionProvider($view_share['__extensions']);
             });
 
+            $this->logAuditAction('custom_service_provider.boot', [
+                'payload' => [
+                    'shared_keys' => array_keys($view_share),
+                ],
+                'status' => 'success',
+                'result' => [
+                    'providers_bound' => [
+                        BasicSettingsProvider::class,
+                        CurrencyProvider::class,
+                        ExtensionProvider::class,
+                    ],
+                ],
+            ]);
         }catch(Exception $e) {
-            //
+            $this->logAuditAction('custom_service_provider.boot_failed', [
+                'status' => 'failed',
+                'result' => [
+                    'message' => $e->getMessage(),
+                ],
+            ]);
         }
     }
 

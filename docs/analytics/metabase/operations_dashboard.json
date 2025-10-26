@@ -1,0 +1,30 @@
+{
+  "name": "Operations SLA",
+  "description": "Operations monitoring",
+  "ordered_cards": [
+    {
+      "card": {
+        "name": "Withdrawal SLA Breach Rate",
+        "dataset_query": {
+          "database": 2,
+          "native": {
+            "query": "SELECT DATE(occurred_at) AS date, SAFE_DIVIDE(SUM(CASE WHEN TIMESTAMP_DIFF(payload.transaction.updated_at, payload.transaction.created_at, MINUTE) > 30 THEN 1 ELSE 0 END), COUNT(*)) AS breach_rate FROM finance.transactions_stream WHERE event_type = 'transactions.withdrawal.completed' AND {{date}} GROUP BY 1 ORDER BY date"
+          },
+          "type": "native"
+        },
+        "display": "line"
+      },
+      "sizeX": 12,
+      "sizeY": 4,
+      "col": 0,
+      "row": 0
+    }
+  ],
+  "parameters": [
+    {
+      "name": "date",
+      "type": "date",
+      "default": "past30days"
+    }
+  ]
+}

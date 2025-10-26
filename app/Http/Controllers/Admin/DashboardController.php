@@ -16,10 +16,13 @@ use App\Models\Transaction;
 use App\Models\TransactionCharge;
 use App\Models\User;
 use App\Models\UserSupportTicket;
+use App\Traits\TracksQueryPerformance;
 
 
 class DashboardController extends Controller
 {
+    use TracksQueryPerformance;
+
     /**
      * Display a listing of the resource.
      *
@@ -27,9 +30,14 @@ class DashboardController extends Controller
      */
     public function index()
     {
+        $this->startQueryMonitoring();
 
-        $page_title = __("Dashboard");
-        $transactions = Transaction::where('type', PaymentGatewayConst::TYPEADDMONEY)->latest()->take(5)->get();
+        try {
+            $page_title = __("Dashboard");
+            $transactions = Transaction::where('type', PaymentGatewayConst::TYPEADDMONEY)
+                ->with(['creator', 'creator_wallet.currency', 'currency'])
+                ->latest()
+                ->paginate(10);
         $last_month_start =  date('Y-m-01', strtotime('-1 month', strtotime(date('Y-m-d'))));
         $last_month_end =  date('Y-m-31', strtotime('-1 month', strtotime(date('Y-m-d'))));
         $this_month_start = date('Y-m-01');
@@ -298,7 +306,7 @@ class DashboardController extends Controller
         $banned_merchant = Merchant::toBase()->where('status', 0)->count();
         $chart_merchant = [$active_merchant, $banned_merchant,$unverified_merchant,$total_merchant];
 
-         $data = [
+        $data = [
             'add_money_total_balance'    => $add_money_total_balance,
             'completed_add_money'      => $completed_add_money,
             'pending_add_money' => $pending_add_money,
@@ -348,9 +356,12 @@ class DashboardController extends Controller
 
             'transactions'        => $transactions
         ];
-        return view('admin.sections.dashboard.index',compact(
-            'page_title','data'
-        ));
+            return view('admin.sections.dashboard.index',compact(
+                'page_title','data'
+            ));
+        } finally {
+            $this->stopQueryMonitoring('admin.dashboard');
+        }
     }
 
 

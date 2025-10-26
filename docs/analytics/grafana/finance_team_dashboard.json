@@ -1,0 +1,82 @@
+{
+  "id": null,
+  "title": "Finance Health Monitor",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10m",
+  "panels": [
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Net Revenue",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT SUM(payload.transaction.payable - payload.transaction.amount) AS net_revenue FROM finance.transactions_stream WHERE event_type IN ('transactions.payment.completed','transactions.withdrawal.completed') AND $__timeFilter(occurred_at);"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Fee Take Rate",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT $__timeGroup(occurred_at, '1d') AS time, SAFE_DIVIDE(SUM(payload.transaction.charge), SUM(payload.transaction.amount)) AS take_rate FROM finance.transactions_stream WHERE event_type = 'transactions.payment.completed' AND $__timeFilter(occurred_at) GROUP BY 1 ORDER BY 1;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "bargauge",
+      "title": "Outstanding Withdrawal Queue",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT payload.transaction.currency.code AS currency, SUM(CASE WHEN payload.transaction.status IN (2,3) THEN payload.transaction.amount ELSE 0 END) AS pending_amount FROM finance.transactions_stream WHERE event_type = 'transactions.withdrawal.completed' AND $__timeFilter(occurred_at) GROUP BY 1"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Reconciliation Variance",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT DATE(occurred_at) AS date, SUM(payload.transaction.amount) AS gross_volume, SUM(payload.transaction.payable) AS payable, SUM(payload.transaction.payable - payload.transaction.amount) AS variance FROM finance.transactions_stream WHERE event_type IN ('transactions.payment.completed','transactions.withdrawal.completed') AND $__timeFilter(occurred_at) GROUP BY 1 ORDER BY date DESC LIMIT 30"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "bigquery"
+      },
+      {
+        "name": "currency",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT payload.transaction.currency.code FROM finance.transactions_stream ORDER BY 1"
+      }
+    ]
+  }
+}
