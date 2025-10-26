@@ -197,6 +197,8 @@ return [
         App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+        App\Providers\HorizonServiceProvider::class,
+        App\Providers\TelemetryServiceProvider::class,
 
         // Image Intervention
         Intervention\Image\ImageServiceProvider::class,
@@ -206,6 +208,7 @@ return [
 
         // Custom Service Provider
         App\Providers\CustomServiceProvider::class,
+        App\Providers\TopupServiceProvider::class,
         \Torann\GeoIP\GeoIPServiceProvider::class,
 
         // Get Client Device Location

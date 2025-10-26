@@ -1,0 +1,58 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: payment-chaos
+  namespace: chaos
+spec:
+  appinfo:
+    appns: payments
+    applabel: app=payment-service
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  annotationCheck: "false"
+  engineState: active
+  jobCleanUpPolicy: retain
+  experiments:
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            - name: TARGET_CONTAINER
+              value: php-fpm
+            - name: TOTAL_CHAOS_DURATION
+              value: "60"
+            - name: CHAOS_INTERVAL
+              value: "30"
+        probe:
+          - name: payment-health
+            type: httpProbe
+            httpProbe/inputs:
+              url: http://payment-service.payments.svc.cluster.local/health
+              method: GET
+              expectedResponseCode: "200"
+            mode: Edge
+            runProperties:
+              probeTimeout: 15
+              interval: 5
+              retry: 5
+    - name: pod-network-latency
+      spec:
+        components:
+          env:
+            - name: TC_IMAGE
+              value: litmuschaos/go-runner:2.17.0
+            - name: NETWORK_LATENCY
+              value: "200"
+            - name: TOTAL_CHAOS_DURATION
+              value: "120"
+        probe:
+          - name: payment-latency
+            type: promProbe
+            promProbe/inputs:
+              endpoint: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+              query: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="payment-service"}[5m])) by (le)) < 0.75
+            mode: Edge
+            runProperties:
+              probeTimeout: 15
+              interval: 5
+              retry: 3

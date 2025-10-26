@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Merchant\Auth;
 use App\Constants\ExtensionConst;
 use App\Http\Controllers\Controller;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Security\DeviceFingerprintService;
+use App\Services\Security\SessionBindingService;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\Merchant\LoggedInUsers;
+use App\Traits\Security\LogsSecurityEvents;
 
 
 class LoginController extends Controller
@@ -27,7 +30,7 @@ class LoginController extends Controller
 
     protected $request_data;
 
-    use AuthenticatesUsers, LoggedInUsers;
+    use AuthenticatesUsers, LoggedInUsers, LogsSecurityEvents;
 
     public function showLoginForm() {
         $page_title ="Merchant Login";
@@ -102,6 +105,20 @@ class LoginController extends Controller
      */
     protected function sendFailedLoginResponse(Request $request)
     {
+        $identifier = (string) $request->input('credentials');
+        $attempts = method_exists($this, 'limiter') ? $this->limiter()->attempts($this->throttleKey($request)) : 0;
+
+        $this->logSecurityWarning('merchant_login_failed', [
+            'identifier' => $identifier,
+            'attempts' => $attempts,
+            'ip' => $request->ip(),
+            'context' => 'merchant_web',
+        ]);
+
+        $this->notifyLoginThresholdExceeded($request, $identifier, $attempts, [
+            'context' => 'merchant_web',
+        ]);
+
         throw ValidationException::withMessages([
             "credentials" => [trans('auth.failed')],
         ]);
@@ -128,6 +145,8 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user)
     {
+        $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+        app(SessionBindingService::class)->bind($request, $user, $fingerprint);
         $user->update([
             'two_factor_verified'   => false,
         ]);
@@ -136,7 +155,7 @@ class LoginController extends Controller
         $this->createDeveloperApi($user);
         $this->refreshSandboxWallets($user);
         $this->createGatewaySetting($user);
-        $this->createLoginLog($user);
+        $this->createLoginLog($user, $fingerprint);
         return redirect()->intended(route('merchant.dashboard'));
     }
 }

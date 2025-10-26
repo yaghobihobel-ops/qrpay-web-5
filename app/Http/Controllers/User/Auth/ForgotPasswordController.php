@@ -16,7 +16,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\DB;
 use App\Traits\AdminNotifications\AuthNotifications;
 
@@ -187,10 +186,7 @@ class ForgotPasswordController extends Controller
 
     public function resetPassword(Request $request,$token) {
         $basic_settings = BasicSettingsProvider::get();
-        $passowrd_rule = "required|string|min:6|confirmed";
-        if($basic_settings->secure_password) {
-            $passowrd_rule = ["required",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised(),"confirmed"];
-        }
+        $passowrd_rule = security_password_rules();
 
         $request->merge(['token' => $token]);
         $validated = Validator::make($request->all(),[
