@@ -2,6 +2,7 @@
 
 namespace App\Models\Admin;
 
+use App\Casts\EncryptedJson;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,7 +13,7 @@ class CryptoAsset extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'credentials' => 'object',
+        'credentials' => EncryptedJson::class,
     ];
 
 

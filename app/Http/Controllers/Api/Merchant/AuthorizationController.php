@@ -11,18 +11,20 @@ use App\Models\Merchants\MerchantAuthorization;
 use App\Notifications\Merchant\Auth\SendAuthorizationCode as AuthSendAuthorizationCode;
 use App\Notifications\User\Auth\SendVerifyCode;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Security\DeviceFingerprintService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;;
+use Illuminate\Support\Facades\Validator;
 use App\Traits\ControlDynamicInputFields;
+use App\Traits\Compliance\HandlesComplianceScreening;
 use Illuminate\Support\Facades\Notification;
 use Pusher\PushNotifications\PushNotifications;
 
 class AuthorizationController extends Controller
 {
-    use ControlDynamicInputFields;
+    use ControlDynamicInputFields, HandlesComplianceScreening;
 
     protected $basic_settings;
 
@@ -127,6 +129,7 @@ class AuthorizationController extends Controller
             $user->update([
                 'two_factor_verified'   => true,
             ]);
+            app(DeviceFingerprintService::class)->trustCurrent($request, $user);
             $message = ['success'=>[ __("Two factor verified successfully")]];
             return Helpers::onlySuccess($message);
         }
@@ -191,6 +194,7 @@ class AuthorizationController extends Controller
                 'kyc_verified'  => GlobalConst::PENDING,
             ]);
             DB::commit();
+            $this->runComplianceScreening($user, $get_values);
         }catch(Exception $e) {
             DB::rollBack();
             $user->update([
