@@ -1,0 +1,47 @@
+{
+  "name": "Product Loyalty Overview",
+  "description": "Metabase dashboard for the product team",
+  "ordered_cards": [
+    {
+      "card": {
+        "name": "Payment Conversion Rate",
+        "dataset_query": {
+          "database": 2,
+          "native": {
+            "query": "SELECT SAFE_DIVIDE(SUM(CASE WHEN payload.transaction.status = 1 THEN 1 ELSE 0 END), COUNT(*)) AS conversion_rate FROM finance.transactions_stream WHERE event_type = 'transactions.payment.completed' AND {{date}}"
+          },
+          "type": "native"
+        },
+        "display": "scalar"
+      },
+      "sizeX": 3,
+      "sizeY": 2,
+      "col": 0,
+      "row": 0
+    },
+    {
+      "card": {
+        "name": "Exchange Volume",
+        "dataset_query": {
+          "database": 2,
+          "native": {
+            "query": "SELECT occurred_at, payload.transaction.currency.code, payload.transaction.amount FROM finance.transactions_stream WHERE event_type = 'transactions.exchange.completed' AND {{date}}"
+          },
+          "type": "native"
+        },
+        "display": "line"
+      },
+      "sizeX": 8,
+      "sizeY": 4,
+      "col": 3,
+      "row": 0
+    }
+  ],
+  "parameters": [
+    {
+      "name": "date",
+      "type": "date",
+      "default": "past30days"
+    }
+  ]
+}

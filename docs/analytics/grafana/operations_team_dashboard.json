@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "title": "Operations Command Center",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Real-time Success Rate",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT $__timeGroup(occurred_at, '5m') AS time, SAFE_DIVIDE(SUM(CASE WHEN payload.transaction.status = 1 THEN 1 ELSE 0 END), COUNT(*)) AS success_rate FROM finance.transactions_stream WHERE event_type IN ('transactions.payment.completed','transactions.withdrawal.completed','transactions.exchange.completed') AND $__timeFilter(occurred_at) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "SLA Breach Tracker",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT payload.transaction.currency.code AS currency, COUNTIF(TIMESTAMP_DIFF(payload.transaction.updated_at, payload.transaction.created_at, MINUTE) > 30) AS breaches, COUNT(*) AS total, SAFE_DIVIDE(breaches, total) AS breach_rate FROM finance.transactions_stream WHERE event_type = 'transactions.withdrawal.completed' AND $__timeFilter(occurred_at) GROUP BY 1 ORDER BY breach_rate DESC"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Top Loyalty Cohorts",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT context.loyalty_segment AS segment, COUNT(*) AS events, SUM(payload.transaction.amount) AS volume FROM finance.transactions_stream WHERE $__timeFilter(occurred_at) GROUP BY 1 ORDER BY volume DESC LIMIT 10"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "bigquery"
+      },
+      {
+        "name": "loyalty_segment",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT context.loyalty_segment FROM finance.transactions_stream ORDER BY 1"
+      }
+    ]
+  }
+}

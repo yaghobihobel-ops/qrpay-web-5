@@ -1,0 +1,78 @@
+{
+  "id": null,
+  "title": "Product Growth Overview",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Payment Conversion Rate",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SAFE_DIVIDE(SUM(CASE WHEN payload.transaction.status = 1 THEN 1 ELSE 0 END), SUM(CASE WHEN payload.transaction.status IN (1,2,3,4) THEN 1 ELSE 0 END)) * 100 AS conversion_rate FROM finance.transactions_stream WHERE event_type = 'transactions.payment.completed' AND $__timeFilter(occurred_at);"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Exchange Volume by Corridor",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT $__timeGroup(occurred_at, '1d') AS time, payload.transaction.currency.code AS currency, SUM(payload.transaction.amount) AS amount FROM finance.transactions_stream WHERE event_type = 'transactions.exchange.completed' AND $__timeFilter(occurred_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Loyalty Segment Lift",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT context.loyalty_segment AS segment, COUNTIF(payload.transaction.attribute = 'RECEIVED') AS received, COUNT(*) AS total, SAFE_DIVIDE(received, total) AS uplift FROM finance.transactions_stream WHERE event_type = 'transactions.payment.completed' AND $__timeFilter(occurred_at) GROUP BY segment ORDER BY uplift DESC"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "bigquery",
+        "label": "Warehouse"
+      },
+      {
+        "name": "environment",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT context.environment FROM finance.transactions_stream ORDER BY 1"
+      }
+    ]
+  }
+}

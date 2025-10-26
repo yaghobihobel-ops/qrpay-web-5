@@ -21,10 +21,12 @@ use App\Traits\ControlDynamicInputFields;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use App\Traits\AdminNotifications\AuthNotifications;
 use App\Services\Security\DeviceFingerprintService;
+use App\Traits\Security\LogsSecurityEvents;
+use Illuminate\Support\Facades\RateLimiter;
 
 class LoginController extends Controller
 {
-    use  AuthenticatesUsers, LoggedInUsers ,RegisteredUsers,ControlDynamicInputFields,AuthNotifications;
+    use  AuthenticatesUsers, LoggedInUsers ,RegisteredUsers,ControlDynamicInputFields,AuthNotifications, LogsSecurityEvents;
     protected $basic_settings;
 
     public function __construct()
@@ -38,16 +40,42 @@ class LoginController extends Controller
         ]);
 
         if($validator->fails()){
+            $this->logSecurityWarning('api_merchant_login_validation_failed', [
+                'identifier' => (string) $request->input('email'),
+                'errors' => $validator->errors()->all(),
+                'context' => 'merchant_api',
+                'ip' => $request->ip(),
+            ]);
             $error =  ['error'=>$validator->errors()->all()];
             return ApiHelpers::validation($error);
         }
         $user = Merchant::where('email',$request->email)->first();
+        $throttleKey = $this->loginThrottleKey($request);
         if(!$user){
+            RateLimiter::hit($throttleKey);
+            $attempts = RateLimiter::attempts($throttleKey);
+            $this->logSecurityWarning('api_merchant_login_failed', [
+                'identifier' => $request->email,
+                'reason' => 'merchant_not_found',
+                'attempts' => $attempts,
+                'context' => 'merchant_api',
+                'ip' => $request->ip(),
+            ]);
+            $this->notifyLoginThresholdExceeded($request, $request->email, $attempts, [
+                'context' => 'merchant_api',
+            ]);
             $error = ['error'=>[__('Merchant does not exist')]];
             return ApiHelpers::validation($error);
         }
         if (Hash::check($request->password, $user->password)) {
             if($user->status == 0){
+                $this->logSecurityWarning('api_merchant_login_blocked', [
+                    'merchant_id' => $user->id,
+                    'identifier' => $request->email,
+                    'reason' => 'account_suspended',
+                    'context' => 'merchant_api',
+                    'ip' => $request->ip(),
+                ]);
                 $error = ['error'=>[__('Account Has been Suspended')]];
                 return ApiHelpers::validation($error);
             }
@@ -61,15 +89,40 @@ class LoginController extends Controller
             $this->createLoginLog($user, $fingerprint);
             $this->createQr($user);
             $token = $user->createToken('Merchant Token')->accessToken;
+            RateLimiter::clear($throttleKey);
+            $this->logSecurityInfo('api_merchant_login_success', [
+                'merchant_id' => $user->id,
+                'identifier' => $request->email,
+                'token_created' => true,
+                'context' => 'merchant_api',
+                'ip' => $request->ip(),
+            ]);
             $data = ['token' => $token, 'merchant' => $user, ];
             $message =  ['success'=>[__('Login Successful')]];
             return ApiHelpers::success($data,$message);
 
         } else {
+            RateLimiter::hit($throttleKey);
+            $attempts = RateLimiter::attempts($throttleKey);
+            $this->logSecurityWarning('api_merchant_login_failed', [
+                'identifier' => $request->email,
+                'reason' => 'invalid_password',
+                'attempts' => $attempts,
+                'context' => 'merchant_api',
+                'ip' => $request->ip(),
+            ]);
+            $this->notifyLoginThresholdExceeded($request, $request->email, $attempts, [
+                'context' => 'merchant_api',
+            ]);
             $error = ['error'=>[__('Incorrect Password')]];
             return ApiHelpers::error($error);
         }
 
+    }
+
+    protected function loginThrottleKey(Request $request): string
+    {
+        return sprintf('api_merchant_login|%s|%s', strtolower((string) $request->input('email')), $request->ip());
     }
 
     public function register(Request $request){

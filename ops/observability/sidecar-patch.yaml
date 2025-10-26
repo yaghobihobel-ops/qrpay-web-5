@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: PLACEHOLDER
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-sdk: "true"
+    spec:
+      containers:
+        - name: php-fpm
+          envFrom:
+            - configMapRef:
+                name: otel-runtime-config
+        - name: otel-sidecar
+          image: otel/opentelemetry-collector:0.88.0
+          args:
+            - "--config=/conf/relay.yaml"
+          volumeMounts:
+            - name: otel-sidecar-config
+              mountPath: /conf
+      initContainers:
+        - name: copy-sidecar-config
+          image: otel/opentelemetry-collector:0.88.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - cp /conf/relay.yaml /otel/relay.yaml
+          volumeMounts:
+            - name: otel-sidecar-config
+              mountPath: /otel
+      volumes:
+        - name: otel-runtime-config
+          configMap:
+            name: otel-runtime-config
+            optional: false
+        - name: otel-sidecar-config
+          configMap:
+            name: otel-sidecar-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-sidecar-config
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: otel-sidecar-config
+    app.kubernetes.io/part-of: qrpay-platform
+data:
+  relay.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+    processors:
+      batch:
+        timeout: 5s
+    exporters:
+      otlp:
+        endpoint: qrpay-otel-collector.observability.svc.cluster.local:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp]
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp]

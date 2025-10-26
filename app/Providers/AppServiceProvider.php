@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
-use App\Services\Domain\ProviderOverrideRepository;
-use App\Services\Monitoring\DomainInstrumentation;
+use App\Services\Deployment\CanaryReleaseManager;
+use App\Services\Deployment\FeatureToggle;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -17,14 +19,18 @@ ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
 class AppServiceProvider extends ServiceProvider
 {
+    use LogsAudit;
+
     /**
      * Register any application services.
      *
      * @return void
-     */
+    */
     public function register()
     {
-        //
+        $this->app->singleton(\App\Services\FeatureToggle::class, function ($app) {
+            return new \App\Services\FeatureToggle();
+        });
     }
 
     /**
@@ -42,43 +48,16 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
-    }
 
-    protected function registerResponseMacros(): void
-    {
-        ResponseFacade::macro('success', function (string $message, mixed $details = null, int $status = 200, int $code = 0) {
-            return ResponseFacade::json([
-                'code' => $code,
-                'message' => $message,
-                'details' => $details,
-            ], $status);
-        });
-
-        ResponseFacade::macro('error', function (string $message, ApiErrorCode|int $code = ApiErrorCode::UNKNOWN, mixed $details = null, int $status = 400) {
-            $code = $code instanceof ApiErrorCode ? $code->value : $code;
-
-            return ResponseFacade::json([
-                'code' => $code,
-                'message' => $message,
-                'details' => $details,
-            ], $status);
-        });
-
-        ResponseFacade::macro('paginated', function (LengthAwarePaginator $paginator, string $message = 'Fetched successfully.', int $status = 200, int $code = 0) {
-            return ResponseFacade::json([
-                'code' => $code,
-                'message' => $message,
-                'details' => [
-                    'data' => $paginator->items(),
-                    'meta' => [
-                        'current_page' => $paginator->currentPage(),
-                        'per_page' => $paginator->perPage(),
-                        'total' => $paginator->total(),
-                        'last_page' => $paginator->lastPage(),
-                    ],
-                ],
-            ], $status);
-        });
+        $this->logAuditAction('app_service_provider.boot', [
+            'payload' => [
+                'force_https' => config('app.force_https'),
+            ],
+            'result' => [
+                'validators_extended' => true,
+            ],
+            'status' => 'success',
+        ]);
     }
 
     /**

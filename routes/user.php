@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Support\HelpContentController;
 use App\Http\Controllers\User\RequestMoneyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,7 @@ use App\Http\Controllers\User\SendMoneyController;
 use App\Http\Controllers\User\ReceipientController;
 use App\Http\Controllers\User\MobileTopupController;
 use App\Http\Controllers\User\PaymentLinkController;
+use App\Http\Controllers\User\PricingController;
 use App\Http\Controllers\User\TransactionController;
 use App\Http\Controllers\User\VirtualcardController;
 use App\Http\Controllers\User\ReceiveMoneyController;
@@ -29,11 +31,17 @@ use App\Http\Controllers\User\StripeVirtualController;
 use App\Http\Controllers\User\StrowalletVirtualController;
 use App\Http\Controllers\User\SudoVirtualCardController;
 use App\Http\Controllers\User\SupportTicketController;
+use App\Http\Controllers\User\PreferencesController;
 
 
+
+Route::get('/help/{section}', [HelpContentController::class, 'show'])
+    ->where('section', '[A-Za-z0-9\-]+')
+    ->name('help.show');
 
 Route::prefix("user")->name("user.")->group(function(){
     Route::post("info",[GlobalController::class,'userInfo'])->name('info');
+    Route::post('pricing/quote', [PricingController::class, 'quote'])->name('pricing.quote');
     Route::controller(DashboardController::class)->group(function(){
         Route::get('dashboard','index')->name('dashboard');
         Route::get('qr/scan/{qr_code}','qrScan')->name('qr.scan');
@@ -41,6 +49,9 @@ Route::prefix("user")->name("user.")->group(function(){
         Route::get('merchant/qr/scan/{qr_code}','merchantQrScan')->name('merchant.qr.scan');
         Route::post('logout','logout')->name('logout');
         Route::delete('delete/account','deleteAccount')->name('delete.account')->middleware('app.mode');
+    });
+    Route::controller(PreferencesController::class)->prefix('preferences')->name('preferences.')->group(function(){
+        Route::post('/', 'update')->name('update');
     });
     //profile
     Route::controller(ProfileController::class)->prefix("profile")->name("profile.")->middleware('app.mode')->group(function(){
@@ -144,6 +155,7 @@ Route::prefix("user")->name("user.")->group(function(){
             Route::post('insert','paymentInsert')->name('insert')->middleware('kyc.verification.guard');
             Route::get('preview','preview')->name('preview');
             Route::post('confirm','confirmMoneyOut')->name('confirm')->middleware('kyc.verification.guard');
+            Route::post('quote','quote')->name('quote');
 
             //check bank validation
             Route::post('check/flutterwave/bank','checkBanks')->name('check.flutterwave.bank');

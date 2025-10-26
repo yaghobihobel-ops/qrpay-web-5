@@ -1,0 +1,30 @@
+{
+  "name": "Finance Net Revenue",
+  "description": "Finance focused KPIs",
+  "ordered_cards": [
+    {
+      "card": {
+        "name": "Net Revenue",
+        "dataset_query": {
+          "database": 2,
+          "native": {
+            "query": "SELECT DATE(occurred_at) AS date, SUM(payload.transaction.payable - payload.transaction.amount) AS net_revenue FROM finance.transactions_stream WHERE event_type IN ('transactions.payment.completed','transactions.withdrawal.completed') AND {{date}} GROUP BY 1 ORDER BY date"
+          },
+          "type": "native"
+        },
+        "display": "area"
+      },
+      "sizeX": 12,
+      "sizeY": 4,
+      "col": 0,
+      "row": 0
+    }
+  ],
+  "parameters": [
+    {
+      "name": "date",
+      "type": "date",
+      "default": "past90days"
+    }
+  ]
+}

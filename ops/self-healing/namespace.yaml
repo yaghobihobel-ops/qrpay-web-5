@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: resilience
+  labels:
+    app.kubernetes.io/name: resilience
+    app.kubernetes.io/part-of: qrpay-platform

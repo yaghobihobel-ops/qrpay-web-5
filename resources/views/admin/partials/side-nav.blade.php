@@ -31,9 +31,11 @@
                 ])
 
                 @include('admin.components.side-nav.link',[
-                    'route'     => 'admin.documentation.index',
-                    'title'     => 'Development Guide',
-                    'icon'      => 'menu-icon las la-book',
+                    'route'     => 'admin.api.guide',
+                    'title'     => __("API Guide"),
+                    'icon'      => "menu-icon las la-book",
+                    'dusk'      => 'sidebar-api-guide',
+                    'check_permission' => false,
                 ])
 
                 {{-- Section Default --}}
@@ -56,6 +58,11 @@
                             'icon'      => "menu-icon las la-hand-holding-usd",
                         ],
                         [
+                            'title'     => __('Pricing Rules'),
+                            'route'     => 'admin.pricing-rules.index',
+                            'icon'      => 'menu-icon las la-percent',
+                        ],
+                        [
                             'title'     => "Virtual Card Api",
                             'route'     => "admin.virtual.card.api",
                             'icon'      => "menu-icon las la-wallet",
@@ -74,6 +81,11 @@
                             'title'     => __("Help Center Analytics"),
                             'route'     => "admin.help-center.analytics",
                             'icon'      => "menu-icon las la-chalkboard-teacher",
+                        ],
+                        [
+                            'title'     => __("Support Analytics"),
+                            'route'     => "admin.support.analytics",
+                            'icon'      => "menu-icon las la-headset",
                         ],
                     ]
                 ])
@@ -767,6 +779,10 @@
                                 <a href="{{ setRoute('admin.setup.sections.section','developer-faq') }}" class="nav-link @if ($current_url == setRoute('admin.setup.sections.section','developer-faq')) active @endif">
                                     <i class="menu-icon las la-ellipsis-h"></i>
                                     <span class="menu-title">{{ __("Developer FAQ") }}</span>
+                                </a>
+                                <a href="{{ setRoute('admin.developer.portal.guide') }}" class="nav-link @if ($current_url == setRoute('admin.developer.portal.guide')) active @endif">
+                                    <i class="menu-icon las la-book"></i>
+                                    <span class="menu-title">{{ __("Developer Portal Guide") }}</span>
                                 </a>
                                 <a href="{{ setRoute('admin.setup.sections.section','contact-us-section') }}" class="nav-link @if ($current_url == setRoute('admin.setup.sections.section','contact-us-section')) active @endif">
                                     <i class="menu-icon las la-ellipsis-h"></i>
