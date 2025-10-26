@@ -12,6 +12,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\Agent\LoggedInUsers;
 use Exception;
+use App\Traits\Security\LogsSecurityEvents;
 
 class LoginController extends Controller
 {
@@ -28,7 +29,7 @@ class LoginController extends Controller
 
     protected $request_data;
 
-    use AuthenticatesUsers, LoggedInUsers;
+    use AuthenticatesUsers, LoggedInUsers, LogsSecurityEvents;
 
     public function showLoginForm() {
         $page_title = __("Agent Login");
@@ -103,6 +104,20 @@ class LoginController extends Controller
      */
     protected function sendFailedLoginResponse(Request $request)
     {
+        $identifier = (string) $request->input('credentials');
+        $attempts = method_exists($this, 'limiter') ? $this->limiter()->attempts($this->throttleKey($request)) : 0;
+
+        $this->logSecurityWarning('agent_login_failed', [
+            'identifier' => $identifier,
+            'attempts' => $attempts,
+            'ip' => $request->ip(),
+            'context' => 'agent_web',
+        ]);
+
+        $this->notifyLoginThresholdExceeded($request, $identifier, $attempts, [
+            'context' => 'agent_web',
+        ]);
+
         throw ValidationException::withMessages([
             "credentials" => [trans('auth.failed')],
         ]);

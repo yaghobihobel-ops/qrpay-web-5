@@ -11,6 +11,7 @@ use App\Models\Admin\AdminNotification;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Security\DeviceFingerprintService;
 use App\Models\DeviceFingerprint;
+use App\Traits\Security\LogsSecurityEvents;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ use Jenssegers\Agent\Agent;
 class LoginController extends Controller
 {
     use AuthenticatesUsers;
+    use LogsSecurityEvents;
 
     /**
      * Display The Amdin Login From Page
@@ -113,6 +115,16 @@ class LoginController extends Controller
 
         try{
             AdminLoginLogs::create($data);
+            $this->logSecurityInfo('admin_login_success', [
+                'admin_id' => $admin->id,
+                'fingerprint_id' => $fingerprint?->id,
+                'ip' => $client_ip,
+                'city' => $data['city'],
+                'country' => $data['country'],
+                'browser' => $data['browser'],
+                'os' => $data['os'],
+                'context' => 'admin_web',
+            ]);
             $notification_message = [
                 'title'   => $admin->fullname . "(" . $admin->username . ")" . " logged in.",
                 'time'      => Carbon::now()->diffForHumans(),
@@ -132,7 +144,11 @@ class LoginController extends Controller
                 ])->send();
             }catch(Exception $e) {}
         }catch(Exception $e) {
-            // return false;
+            $this->logSecurityError('admin_login_log_failed', [
+                'admin_id' => $admin->id,
+                'ip' => $client_ip,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -147,6 +163,20 @@ class LoginController extends Controller
      */
     protected function sendFailedLoginResponse(Request $request)
     {
+        $identifier = (string) $request->input('email');
+        $attempts = method_exists($this, 'limiter') ? $this->limiter()->attempts($this->throttleKey($request)) : 0;
+
+        $this->logSecurityWarning('admin_login_failed', [
+            'identifier' => $identifier,
+            'attempts' => $attempts,
+            'ip' => $request->ip(),
+            'context' => 'admin_web',
+        ]);
+
+        $this->notifyLoginThresholdExceeded($request, $identifier, $attempts, [
+            'context' => 'admin_web',
+        ]);
+
         throw ValidationException::withMessages([
             'credential' => [trans('auth.failed')],
         ]);

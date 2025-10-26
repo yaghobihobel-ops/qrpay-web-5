@@ -37,4 +37,10 @@ return [
         'push_notification_config',
         'broadcast_config',
     ],
+
+    'login_attempts' => [
+        'threshold' => (int) env('SECURITY_LOGIN_ALERT_THRESHOLD', 5),
+        'mail' => env('SECURITY_ALERT_EMAIL'),
+        'slack_webhook' => env('SECURITY_ALERT_SLACK_WEBHOOK'),
+    ],
 ];
