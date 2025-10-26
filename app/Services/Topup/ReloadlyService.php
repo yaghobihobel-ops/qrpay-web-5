@@ -93,7 +93,7 @@ class ReloadlyService implements TopupProviderInterface
         try {
             return $this->http->withHeaders([
                 'Authorization' => 'Bearer ' . $this->accessToken,
-                'Accept: application/com.reloadly.utilities-v1+json',
+                'Accept' => 'application/com.reloadly.utilities-v1+json',
             ])->get($endpoint)->throw()->json();
         } catch (RequestException $exception) {
             $errorResponse = json_decode($exception->response?->body() ?? '{}', true);
@@ -113,7 +113,7 @@ class ReloadlyService implements TopupProviderInterface
 
         try {
             return $this->http->withHeaders([
-                'Accept: application/com.reloadly.topups-v1+json',
+                'Accept' => 'application/com.reloadly.topups-v1+json',
                 'Authorization' => 'Bearer ' . $this->accessToken,
                 'Content-Type' => 'application/json',
             ])->post($endpoint, $data)->throw()->json();
@@ -136,7 +136,7 @@ class ReloadlyService implements TopupProviderInterface
         try {
             return $this->http->withHeaders([
                 'Authorization' => 'Bearer ' . $this->accessToken,
-                'Accept: application/com.reloadly.utilities-v1+json',
+                'Accept' => 'application/com.reloadly.utilities-v1+json',
             ])->get($endpoint)->throw()->json();
         } catch (RequestException $exception) {
             $body = $exception->response?->json();
