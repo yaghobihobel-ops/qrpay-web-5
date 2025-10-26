@@ -11,93 +11,53 @@
 
 @section('content')
 <div class="body-wrapper">
-    @php
-        $gatewayOptions = collect($payment_gateways ?? [])->map(function ($item) {
-            $rate = $item->rate ?? 1;
-            $precision = optional($item->gateway)->crypto ? 8 : 2;
-            $minBase = $rate > 0 ? getAmount($item->min_limit / $rate, $precision) : 0;
-            $maxBase = $rate > 0 ? getAmount($item->max_limit / $rate, $precision) : 0;
-            return [
-                'value' => $item->alias,
-                'label' => $item->name . ' · ' . $item->currency_code,
-                'meta' => [
-                    'currency' => $item->currency_code,
-                    'min' => $minBase,
-                    'max' => $maxBase,
-                    'fixedCharge' => $item->fixed_charge,
-                    'percentCharge' => $item->percent_charge,
-                    'rate' => $rate,
-                    'isCrypto' => (bool) optional($item->gateway)->crypto,
-                ],
-            ];
-        })->values();
-        $wizardConfig = [
-            'flow' => __('Withdraw'),
-            'title' => __(@$page_title),
-            'subtitle' => __('Step through gateway selection, amount entry, and instant fee calculation.'),
-            'formId' => 'withdraw-wizard',
-            'csrfToken' => csrf_token(),
-            'currency' => get_default_currency_code(),
-            'locale' => app()->getLocale(),
-            'startingValues' => [
-                'amount' => old('amount'),
-                'gateway' => old('gateway'),
-            ],
-            'meta' => [
-                'previewTitle' => __('Withdraw preview'),
-                'helper' => __('All limits are shown in your default currency.'),
-                'labels' => [
-                    'amount' => __('Amount'),
-                    'conversion' => __('Conversion'),
-                    'fees' => __('Fees & Charges'),
-                    'willGet' => __('Recipient will get'),
-                    'total' => __('Total Payable'),
-                    'limit' => __('Limit'),
-                    'rate' => __('Rate'),
-                ],
-            ],
-            'steps' => [
-                [
-                    'title' => __('Choose gateway'),
-                    'description' => __('Select where funds should be transferred'),
-                    'fields' => [
-                        [
-                            'name' => 'gateway',
-                            'type' => 'select',
-                            'label' => __('Payment gateway'),
-                            'placeholder' => __('Select a gateway'),
-                            'required' => true,
-                            'options' => $gatewayOptions,
-                            'helper' => __('Supported gateways are filtered to your enabled channels.'),
-                        ],
-                    ],
-                ],
-                [
-                    'title' => __('Withdraw amount'),
-                    'description' => __('Enter how much you want to move'),
-                    'fields' => [
-                        [
-                            'name' => 'amount',
-                            'type' => 'number',
-                            'label' => __('Amount'),
-                            'placeholder' => __('enter Amount'),
-                            'required' => true,
-                            'helper' => __('Preview updates in real time with gateway fees.'),
-                        ],
-                    ],
-                ],
-                [
-                    'title' => __('Review & submit'),
-                    'description' => __('Confirm the conversion rate before sending'),
-                    'fields' => [],
-                ],
-            ],
-        ];
-    @endphp
-    <div class="mt-4" data-flow-wizard='@json($wizardConfig)'></div>
-    <form id="withdraw-wizard" action="{{ setRoute('user.money.out.insert') }}" method="POST" class="d-none">
-        @csrf
-    </form>
+    <div class="dashboard-area mt-10">
+        <div class="dashboard-header-wrapper">
+            <div class="d-flex align-items-center gap-2">
+                <h3 class="title mb-0">{{__($page_title)}}</h3>
+                @include('user.components.help-icon', ['section' => 'withdrawals'])
+            </div>
+        </div>
+    </div>
+    <div class="row mb-30-none">
+        <div class="col-lg-6 mb-30">
+            <div class="dash-payment-item-wrapper">
+                <div class="dash-payment-item active">
+                    <div class="dash-payment-title-area">
+                        <span class="dash-payment-badge">!</span>
+                        <h5 class="title">{{ __($page_title) }}</h5>
+                    </div>
+                    <div class="dash-payment-body">
+                        <form class="card-form" action="{{ setRoute('user.money.out.insert') }}" method="POST">
+                            @csrf
+                            <div class="row">
+                                <div class="col-xl-12 col-lg-12 form-group text-center">
+                                    <div class="exchange-area">
+                                        <code class="d-block text-center"><span>{{ __("Exchange Rate") }}</span> <span class="rate-show">--</span></code>
+                                    </div>
+                                </div>
+                                <div class="col-xl-6 col-lg-6 form-group">
+                                    <label>{{ __("Payment Gateway") }}<span>*</span></label>
+                                    <select class="form--control nice-select gateway-select" name="gateway">
+                                        @forelse ($payment_gateways ?? [] as $item)
+                                            <option
+                                                value="{{ $item->alias  }}"
+                                                data-currency="{{ $item->currency_code }}"
+                                                data-min_amount="{{ $item->min_limit }}"
+                                                data-max_amount="{{ $item->max_limit }}"
+                                                data-percent_charge="{{ $item->percent_charge }}"
+                                                data-fixed_charge="{{ $item->fixed_charge }}"
+                                                data-rate="{{ $item->rate }}"
+                                                data-crypto="{{ $item->gateway->crypto}}"
+                                                >
+                                                {{ $item->name }}
+                                            </option>
+                                        @empty
+                                            <option value="null" disabled  selected>{{ __('No Gateway Available') }}</option>
+                                        @endforelse
+                                    </select>
+                                </div>
+                                <div class="col-xl-6 col-lg-6 form-group">
 
     <div class="dashboard-list-area mt-20">
         <div class="dashboard-header-wrapper">
