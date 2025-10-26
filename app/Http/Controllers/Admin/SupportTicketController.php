@@ -123,15 +123,30 @@ class SupportTicketController extends Controller
             return Response::error($error,null,500);
         }
 
+        $updates = [];
+
         if($support_ticket->status != SupportTicketConst::ACTIVE) {
+            $updates['status'] = SupportTicketConst::ACTIVE;
+        }
+
+        if(!$support_ticket->first_response_at) {
+            $updates['first_response_at'] = now();
+        }
+
+        if(!empty($updates)) {
             try{
-                $support_ticket->update([
-                    'status'    => SupportTicketConst::ACTIVE,
-                ]);
+                $support_ticket->update($updates);
             }catch(Exception $e) {
-                $error = ['error' => [__("Failed to change status to active!")]];
+                $error = ['error' => [__("Failed to update ticket metadata")]];
                 return Response::error($error,null,500);
             }
+        }
+
+        if($support_ticket->supportBotSession) {
+            $support_ticket->supportBotSession->update([
+                'last_interaction_at' => now(),
+                'handoff_recommended' => false,
+            ]);
         }
     }
 
@@ -146,11 +161,24 @@ class SupportTicketController extends Controller
         if($support_ticket->status == SupportTicketConst::SOLVED) return back()->with(['warning' => [__("This ticket is already solved!")]]);
 
         try{
-            $support_ticket->update([
+            $updates = [
                 'status'        => SupportTicketConst::SOLVED,
-            ]);
+                'resolved_at'   => now(),
+            ];
+
+            if(!$support_ticket->first_response_at) {
+                $updates['first_response_at'] = now();
+            }
+
+            $support_ticket->update($updates);
         }catch(Exception $e) {
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
+        }
+
+        if($support_ticket->supportBotSession) {
+            $support_ticket->supportBotSession->update([
+                'last_interaction_at' => now(),
+            ]);
         }
 
         return back()->with(['success' => [__("Success")]]);

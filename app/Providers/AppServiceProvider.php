@@ -3,13 +3,23 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Domain\ProviderOverrideRepository;
+use App\Services\Monitoring\DomainInstrumentation;
+use App\Services\Orchestration\PaymentRouter;
+use App\Services\Orchestration\Providers\AlipayAdapter;
+use App\Services\Orchestration\Providers\BluBankAdapter;
+use App\Services\Orchestration\Providers\GenericPspAdapter;
+use App\Services\Orchestration\Providers\YoomoneaAdapter;
+use App\Services\Pricing\FeeEngine;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ServiceProvider;
 
 ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
@@ -22,7 +32,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton(PaymentRouter::class, function ($app) {
+            return new PaymentRouter([
+                new AlipayAdapter(),
+                new BluBankAdapter(),
+                new GenericPspAdapter('ContingencyPay', ['uptime' => 99.0, 'latency' => 260], ['success_rate' => 0.95]),
+                new YoomoneaAdapter(),
+            ], $app->make(FeeEngine::class));
+        });
     }
 
     /**
@@ -34,12 +51,51 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
         Schema::defaultStringLength(191);
-        if(config('security.enforce_https') && $this->app->environment('production') && !app()->runningInConsole()) {
+        if(config('app.force_https') && $this->app->environment('production') && !app()->runningInConsole()) {
             URL::forceScheme('https');
         }
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        Transaction::observe(TransactionObserver::class);
+    }
+
+    protected function registerResponseMacros(): void
+    {
+        ResponseFacade::macro('success', function (string $message, mixed $details = null, int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('error', function (string $message, ApiErrorCode|int $code = ApiErrorCode::UNKNOWN, mixed $details = null, int $status = 400) {
+            $code = $code instanceof ApiErrorCode ? $code->value : $code;
+
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('paginated', function (LengthAwarePaginator $paginator, string $message = 'Fetched successfully.', int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => [
+                    'data' => $paginator->items(),
+                    'meta' => [
+                        'current_page' => $paginator->currentPage(),
+                        'per_page' => $paginator->perPage(),
+                        'total' => $paginator->total(),
+                        'last_page' => $paginator->lastPage(),
+                    ],
+                ],
+            ], $status);
+        });
     }
 
     /**

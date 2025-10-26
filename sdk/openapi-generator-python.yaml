@@ -1,0 +1,7 @@
+generatorName: python
+additionalProperties:
+  packageName: qrpay_sdk
+  projectName: qrpay-sdk
+  packageVersion: 1.0.0
+  packageUrl: https://github.com/qrpay/python-sdk
+  generateSourceCodeOnly: true
