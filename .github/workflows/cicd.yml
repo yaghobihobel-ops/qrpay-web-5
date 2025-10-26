@@ -48,6 +48,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Prepare deployment
         run: |
           echo "Deploying canary release to ${CANARY_ENVIRONMENT}"
@@ -70,6 +72,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Manual approval
         uses: trstringer/manual-approval@v1
         with:
