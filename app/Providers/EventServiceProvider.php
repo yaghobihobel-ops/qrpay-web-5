@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
-use App\Events\PayoutWebhookReceived;
-use App\Listeners\QueuePayoutWebhookProcessing;
+use App\Events\Transaction\TransactionStageChanged;
+use App\Events\Transaction\TransactionStageFailed;
+use App\Listeners\Transaction\QueueTransactionStageCallback;
+use App\Listeners\Transaction\RunTransactionCompensation;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -20,8 +22,11 @@ class EventServiceProvider extends ServiceProvider
         Registered::class => [
             SendEmailVerificationNotification::class,
         ],
-        PayoutWebhookReceived::class => [
-            QueuePayoutWebhookProcessing::class,
+        TransactionStageChanged::class => [
+            QueueTransactionStageCallback::class,
+        ],
+        TransactionStageFailed::class => [
+            RunTransactionCompensation::class,
         ],
     ];
 
