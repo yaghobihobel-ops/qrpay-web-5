@@ -13,7 +13,7 @@ class QueueMonitorController extends Controller
 
         return view('admin.sections.horizon.dashboard', [
             'page_title' => $page_title,
-            'horizonAvailable' => class_exists(\Laravel\Horizon\Horizon::class),
+            'horizonAvailable' => class_exists('Laravel\\Horizon\\Horizon'),
             'horizonPath' => url(config('horizon.path', 'horizon')),
         ]);
     }
