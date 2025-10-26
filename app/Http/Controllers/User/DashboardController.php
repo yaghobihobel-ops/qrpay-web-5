@@ -12,9 +12,10 @@ use App\Models\GiftCard;
 use App\Models\Merchants\Merchant;
 use App\Models\Merchants\MerchantQrCode;
 use App\Models\Transaction;
-use App\Models\User;
 use App\Models\UserQrCode;
-use Carbon\Carbon;
+use App\Models\User;
+use App\Services\Loyalty\CampaignService;
+use App\Services\Loyalty\LoyaltyService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +26,12 @@ use App\Services\Recommendations\RouteRecommendationEngine;
 
 class DashboardController extends Controller
 {
-    use AuthNotifications, TracksQueryPerformance;
+    use AuthNotifications;
+    public function __construct(
+        protected LoyaltyService $loyaltyService,
+        protected CampaignService $campaignService
+    ) {
+    }
     public function index()
     {
         $page_title =__( "Dashboard");
@@ -376,8 +382,31 @@ class DashboardController extends Controller
             'locale' => app()->getLocale(),
         ];
 
-         //
-        return view('user.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData','recommendation'));
+        $user = auth()->user();
+        $loyaltyAccount = $this->loyaltyService->getOrCreateAccount($user);
+        $loyaltySummary = $this->loyaltyService->getDashboardSummary($loyaltyAccount);
+        $specialOffers = $this->loyaltyService->getSpecialOffers($loyaltyAccount);
+        $campaignRecommendations = $this->campaignService->getActionableCampaigns($loyaltyAccount);
+
+        $this->campaignService->trigger('dashboard_view', $user, [
+            'current_points' => $loyaltyAccount->points_balance,
+            'tier' => $loyaltyAccount->tier,
+            'lifetime_points' => $loyaltyAccount->lifetime_points,
+        ]);
+
+        return view(
+            'user.dashboard',
+            compact(
+                'page_title',
+                'baseCurrency',
+                'transactions',
+                'data',
+                'chartData',
+                'loyaltySummary',
+                'specialOffers',
+                'campaignRecommendations'
+            )
+        );
     }
 
     public function logout(Request $request) {

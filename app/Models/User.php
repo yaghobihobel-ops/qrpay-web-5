@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Constants\GlobalConst;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
@@ -227,6 +229,16 @@ class User extends Authenticatable
             ];
         }
         return (object) $data;
+    }
+
+    public function loyaltyAccount(): HasOne
+    {
+        return $this->hasOne(LoyaltyAccount::class);
+    }
+
+    public function loyaltyCampaignRuns(): HasMany
+    {
+        return $this->hasMany(LoyaltyCampaignRun::class);
     }
 
     public function loginLogs(){
