@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
+use App\Traits\Auth\HasRolesAndPermissions;
 use App\Traits\User\UserPartials;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, UserPartials;
+    use HasApiTokens, HasFactory, Notifiable, UserPartials, HasRolesAndPermissions;
     protected $appends = ['fullname','userImage','stringStatus','lastLogin','kycStringStatus'];
     protected $dates = ['deleted_at'];
     /**
