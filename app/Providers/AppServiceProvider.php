@@ -3,9 +3,15 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Payments\InternalWalletService;
 use App\Services\Payments\Regional\RegionalPaymentManager;
+use App\Services\VirtualCard\KycProviderInterface;
+use App\Services\VirtualCard\StrowalletVirtualCardService;
+use App\Services\VirtualCard\VirtualCardProviderInterface;
+use GuzzleHttp\Client;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -21,7 +27,7 @@ class AppServiceProvider extends ServiceProvider
      * Register any application services.
      *
      * @return void
-     */
+    */
     public function register()
     {
         $this->app->singleton(InternalWalletService::class, fn () => new InternalWalletService());
@@ -34,6 +40,18 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->alias(RegionalPaymentManager::class, 'regional.payment.manager');
+        foreach (config('payments.providers', []) as $provider) {
+            $class = $provider['class'] ?? null;
+            if (!$class) {
+                continue;
+            }
+
+            $config = $provider['config'] ?? [];
+
+            $this->app->bind($class, function ($app) use ($class, $config) {
+                return new $class($config);
+            });
+        }
     }
 
     /**
@@ -51,6 +69,45 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        Transaction::observe(TransactionObserver::class);
+    }
+
+    protected function registerResponseMacros(): void
+    {
+        ResponseFacade::macro('success', function (string $message, mixed $details = null, int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('error', function (string $message, ApiErrorCode|int $code = ApiErrorCode::UNKNOWN, mixed $details = null, int $status = 400) {
+            $code = $code instanceof ApiErrorCode ? $code->value : $code;
+
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => $details,
+            ], $status);
+        });
+
+        ResponseFacade::macro('paginated', function (LengthAwarePaginator $paginator, string $message = 'Fetched successfully.', int $status = 200, int $code = 0) {
+            return ResponseFacade::json([
+                'code' => $code,
+                'message' => $message,
+                'details' => [
+                    'data' => $paginator->items(),
+                    'meta' => [
+                        'current_page' => $paginator->currentPage(),
+                        'per_page' => $paginator->perPage(),
+                        'total' => $paginator->total(),
+                        'last_page' => $paginator->lastPage(),
+                    ],
+                ],
+            ], $status);
+        });
     }
 
     /**

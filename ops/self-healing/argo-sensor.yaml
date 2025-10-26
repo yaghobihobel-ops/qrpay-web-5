@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: alertmanager-self-heal
+  namespace: resilience
+spec:
+  template:
+    serviceAccountName: argo-workflows
+  dependencies:
+    - name: restart-alert
+      eventSourceName: alertmanager
+      eventName: critical-alerts
+      filters:
+        data:
+          - path: body.alerts.0.labels.remediation
+            type: string
+            value:
+              - payment-quick-restart
+    - name: shift-alert
+      eventSourceName: alertmanager
+      eventName: critical-alerts
+      filters:
+        data:
+          - path: body.alerts.0.labels.remediation
+            type: string
+            value:
+              - shift-traffic-to-secondary
+  triggers:
+    - template:
+        name: restart-payment
+        argoWorkflow:
+          operation: submit
+          source:
+            workflowTemplateRef:
+              name: payment-auto-remediation
+          arguments:
+            parameters:
+              - name: entrypoint
+                value: restart-payment
+      retryStrategy:
+        steps: 5
+        duration: 5s
+      dependencies:
+        - restart-alert
+    - template:
+        name: shift-traffic
+        argoWorkflow:
+          operation: submit
+          source:
+            workflowTemplateRef:
+              name: payment-auto-remediation
+          arguments:
+            parameters:
+              - name: entrypoint
+                value: shift-traffic
+      retryStrategy:
+        steps: 5
+        duration: 5s
+      dependencies:
+        - shift-alert
