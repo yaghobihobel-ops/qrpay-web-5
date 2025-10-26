@@ -5,7 +5,7 @@
     "keywords": ["framework", "laravel"],
     "license": "MIT",
     "require": {
-        "php": "^8.0.2",
+        "php": "^8.1",
         "buglinjo/laravel-webp": "^2.3",
         "flutterwavedev/flutterwave-v3": "^1.0",
         "guzzlehttp/guzzle": "^7.2",
@@ -27,7 +27,9 @@
         "pusher/pusher-push-notifications": "^2.0",
         "srmklive/paypal": "^3.0",
         "stripe/stripe-php": "^10.3",
-        "torann/geoip": "^3.0"
+        "torann/geoip": "^3.0",
+        "open-telemetry/sdk": "^1.0",
+        "open-telemetry/exporter-otlp": "^1.0"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.7",
@@ -73,7 +75,10 @@
         ],
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi"
-        ]
+        ],
+        "test": "vendor/bin/phpunit",
+        "test:contracts": "vendor/bin/phpunit --testsuite=Contract",
+        "test:e2e": "vendor/bin/phpunit --testsuite=EndToEnd"
     },
     "extra": {
         "laravel": {

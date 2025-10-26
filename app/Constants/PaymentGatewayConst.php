@@ -4,6 +4,17 @@ namespace App\Constants;
 use App\Models\AgentWallet;
 use App\Models\Merchants\MerchantWallet;
 use App\Models\UserWallet;
+use App\Services\Payments\CoingatePaymentProvider;
+use App\Services\Payments\FlutterwavePaymentProvider;
+use App\Services\Payments\ManualPaymentProvider;
+use App\Services\Payments\PagaditoPaymentProvider;
+use App\Services\Payments\PaypalPaymentProvider;
+use App\Services\Payments\PaystackPaymentProvider;
+use App\Services\Payments\PerfectMoneyPaymentProvider;
+use App\Services\Payments\RazorpayPaymentProvider;
+use App\Services\Payments\SslcommerzPaymentProvider;
+use App\Services\Payments\StripePaymentProvider;
+use App\Services\Payments\TatumPaymentProvider;
 use Illuminate\Support\Str;
 
 class PaymentGatewayConst {
@@ -109,27 +120,25 @@ class PaymentGatewayConst {
 
     public static function register($alias = null) {
         $gateway_alias  = [
-            self::PAYPAL        => 'paypalInit',
-            self::STRIPE        => 'stripeInit',
-            self::MANUA_GATEWAY => 'manualInit',
-            self::FLUTTER_WAVE  => 'flutterwaveInit',
-            self::RAZORPAY      => 'razorInit',
-            self::PAGADITO      => 'pagaditoInit',
-            self::SSLCOMMERZ    => 'sslcommerzInit',
-            self::COINGATE      => 'coingateInit',
-            self::TATUM         => 'tatumInit',
-            self::PERFECT_MONEY => 'perfectMoneyInit',
-            self::PAYSTACK      => 'paystackInit'
+            self::PAYPAL        => PaypalPaymentProvider::class,
+            self::STRIPE        => StripePaymentProvider::class,
+            self::MANUA_GATEWAY => ManualPaymentProvider::class,
+            self::FLUTTER_WAVE  => FlutterwavePaymentProvider::class,
+            self::RAZORPAY      => RazorpayPaymentProvider::class,
+            self::PAGADITO      => PagaditoPaymentProvider::class,
+            self::SSLCOMMERZ    => SslcommerzPaymentProvider::class,
+            self::COINGATE      => CoingatePaymentProvider::class,
+            self::TATUM         => TatumPaymentProvider::class,
+            self::PERFECT_MONEY => PerfectMoneyPaymentProvider::class,
+            self::PAYSTACK      => PaystackPaymentProvider::class,
+            strtolower(self::MANUAL) => ManualPaymentProvider::class,
         ];
 
         if($alias == null) {
             return $gateway_alias;
         }
 
-        if(array_key_exists($alias,$gateway_alias)) {
-            return $gateway_alias[$alias];
-        }
-        return "init";
+        return $gateway_alias[$alias] ?? null;
     }
     const APP       = "APP";
     public static function apiAuthenticateGuard() {

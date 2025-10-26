@@ -1,0 +1,84 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: qrpay-otel-collector
+  namespace: observability
+spec:
+  mode: deployment
+  serviceAccount: qrpay-otel-collector
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+    processors:
+      batch:
+        send_batch_size: 8192
+        timeout: 5s
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 400
+        spike_limit_mib: 500
+      attributes/traces:
+        actions:
+          - key: service.name
+            action: upsert
+            value: qrpay-backend
+    exporters:
+      logging:
+        loglevel: info
+      otlp/tempo:
+        endpoint: tempo.observability.svc.cluster.local:4317
+        tls:
+          insecure: true
+      loki:
+        endpoint: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+      prometheus:
+        endpoint: 0.0.0.0:9464
+        namespace: qrpay
+    service:
+      telemetry:
+        metrics:
+          address: 0.0.0.0:8888
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch, attributes/traces]
+          exporters: [otlp/tempo, logging]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [loki, logging]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: qrpay-otel-collector
+  namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: qrpay-otel-collector
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: qrpay-otel-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: qrpay-otel-collector
+subjects:
+  - kind: ServiceAccount
+    name: qrpay-otel-collector
+    namespace: observability

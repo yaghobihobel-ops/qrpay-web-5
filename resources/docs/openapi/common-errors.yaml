@@ -1,0 +1,104 @@
+openapi: 3.0.3
+info:
+  title: QRPay API Common Errors
+  version: 1.0.0
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+        - details
+      properties:
+        code:
+          type: integer
+          description: Domain specific error code.
+          example: 1401
+        message:
+          type: string
+          description: Human readable summary of the error.
+          example: Unauthenticated.
+        details:
+          description: Additional contextual information about the error.
+          nullable: true
+          oneOf:
+            - type: object
+            - type: array
+            - type: string
+    ValidationErrorDetails:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          type: array
+          items:
+            type: string
+          example:
+            - The email field is required.
+  responses:
+    BadRequest:
+      description: Malformed request payload or invalid parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            default:
+              value:
+                code: 1000
+                message: Request failed.
+                details:
+                  errors:
+                    - The provided payload is invalid.
+    Unauthorized:
+      description: Authentication credentials were missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            default:
+              value:
+                code: 1401
+                message: Unauthenticated.
+                details: null
+    Forbidden:
+      description: The authenticated user does not have permission for the requested resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            default:
+              value:
+                code: 1403
+                message: This action is unauthorized.
+                details: null
+    UnprocessableEntity:
+      description: Validation failed for the provided data.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation:
+              value:
+                code: 1001
+                message: The given data was invalid.
+                details:
+                  errors:
+                    - The email field is required.
+    InternalServerError:
+      description: The server encountered an unexpected condition that prevented it from fulfilling the request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            default:
+              value:
+                code: 1000
+                message: An unexpected error occurred.
+                details: null

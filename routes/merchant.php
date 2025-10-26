@@ -56,7 +56,7 @@ Route::prefix("merchant")->name("merchant.")->group(function(){
 
     //money out
     Route::middleware('module:merchant-withdraw-money')->group(function(){
-        Route::controller(MoneyOutController::class)->prefix('withdraw')->name('withdraw.')->group(function(){
+        Route::controller(MoneyOutController::class)->prefix('withdraw')->name('withdraw.')->middleware('domain.rate_limit:withdrawal,merchant-withdraw')->group(function(){
             Route::get('/','index')->name('index');
             Route::post('insert','paymentInsert')->name('insert')->middleware('kyc.verification.guard');
             Route::get('preview','preview')->name('preview');

@@ -1,0 +1,27 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: qrpay-gateway
+  namespace: istio-system
+spec:
+  hosts:
+    - qrpay.api.internal
+  gateways:
+    - qrpay-ingress-gateway
+  http:
+    - name: primary-traffic
+      route:
+        - destination:
+            host: qrpay-backend.primary.svc.cluster.local
+          weight: 80
+        - destination:
+            host: qrpay-backend.secondary.svc.cluster.local
+          weight: 20
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+      fault:
+        abort:
+          percentage:
+            value: 0
+          httpStatus: 503

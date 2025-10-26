@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
-use App\Services\Payments\InternalWalletService;
-use App\Services\Payments\Regional\RegionalPaymentManager;
+use App\Services\Deployment\CanaryReleaseManager;
+use App\Services\Deployment\FeatureToggle;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -17,23 +19,18 @@ ini_set('memory_limit','-1');
 ini_set('serialize_precision','-1');
 class AppServiceProvider extends ServiceProvider
 {
+    use LogsAudit;
+
     /**
      * Register any application services.
      *
      * @return void
-     */
+    */
     public function register()
     {
-        $this->app->singleton(InternalWalletService::class, fn () => new InternalWalletService());
-
-        $this->app->singleton(RegionalPaymentManager::class, function ($app) {
-            return new RegionalPaymentManager(
-                $app->make(InternalWalletService::class),
-                config('payments.regional_providers', [])
-            );
+        $this->app->singleton(\App\Services\FeatureToggle::class, function ($app) {
+            return new \App\Services\FeatureToggle();
         });
-
-        $this->app->alias(RegionalPaymentManager::class, 'regional.payment.manager');
     }
 
     /**
@@ -45,12 +42,22 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
         Schema::defaultStringLength(191);
-        if(config('security.enforce_https') && $this->app->environment('production') && !app()->runningInConsole()) {
+        if(config('app.force_https') && $this->app->environment('production') && !app()->runningInConsole()) {
             URL::forceScheme('https');
         }
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        $this->logAuditAction('app_service_provider.boot', [
+            'payload' => [
+                'force_https' => config('app.force_https'),
+            ],
+            'result' => [
+                'validators_extended' => true,
+            ],
+            'status' => 'success',
+        ]);
     }
 
     /**

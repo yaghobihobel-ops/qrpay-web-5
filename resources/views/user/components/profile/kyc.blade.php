@@ -1,10 +1,10 @@
 @if ($basic_settings->kyc_verification == true && isset($kyc_data) && $kyc_data != null && $kyc_data->fields != null)
 
     <div class="custom-card mt-30">
-        <div class="dashboard-header-wrapper d-flex align-items-center justify-content-between">
+        <div class="dashboard-header-wrapper">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h4 class="title mb-0">{{ __("KYC Information") }} &nbsp; <span class="{{ auth()->user()->kycStringStatus->class }}">{{ __(auth()->user()->kycStringStatus->value) }}</span></h4>
-                <x-help.launcher section="kyc" :label="__('KYC help')" />
+                @include('user.components.help-icon', ['section' => 'kyc'])
             </div>
         </div>
         <div class="card-body">

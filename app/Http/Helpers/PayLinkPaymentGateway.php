@@ -26,6 +26,8 @@ use App\Models\Merchants\MerchantWallet;
 use App\Traits\PaymentGateway\FlutterwaveTrait;
 use App\Traits\PaymentGateway\PerfectMoney;
 use App\Traits\PaymentGateway\PaystackTrait;
+use App\Services\Payments\PaymentProviderInterface;
+use App\Services\Payments\PaymentProviderResolver;
 
 class PayLinkPaymentGateway {
 
@@ -39,6 +41,7 @@ class PayLinkPaymentGateway {
         PerfectMoney,
         PaystackTrait;
 
+    protected PaymentProviderResolver $providerResolver;
     protected $request_data;
     protected $output;
     protected $currency_input_name = "currency";
@@ -51,13 +54,22 @@ class PayLinkPaymentGateway {
     protected $predefined_guard;
     protected $predefined_user;
 
-    public function __construct(array $request_data)
+    public function __construct(PaymentProviderResolver $providerResolver)
     {
-        $this->request_data = $request_data;
+        $this->providerResolver = $providerResolver;
+        $this->request_data = [];
     }
 
     public static function init(array $data) {
-        return new PayLinkPaymentGateway($data);
+        /** @var self $instance */
+        $instance = app(self::class);
+        return $instance->setRequestData($data);
+    }
+
+    public function setRequestData(array $data): self
+    {
+        $this->request_data = $data;
+        return $this;
     }
 
     public function payLinkGateway() {
@@ -141,14 +153,19 @@ class PayLinkPaymentGateway {
         if(!$gateway) $gateway = $this->output['gateway'];
         $alias = Str::lower($gateway->alias);
         if($gateway->type == PaymentGatewayConst::AUTOMATIC){
-            $method = PaymentGatewayConst::register($alias);
+            $serviceId = PaymentGatewayConst::register($alias);
         }elseif($gateway->type == PaymentGatewayConst::MANUAL){
-            $method = PaymentGatewayConst::register(strtolower($gateway->type));
+            $serviceId = PaymentGatewayConst::register(strtolower($gateway->type));
         }
-        if(method_exists($this,$method)) {
-            return $method;
+        if(!$serviceId) {
+            throw new Exception("Gateway(".$gateway->name.") provider is not registered");
         }
-        return throw new Exception("Gateway(".$gateway->name.") Trait or Method (".$method."()) does not exists");
+
+        $provider = $this->providerResolver->resolve($serviceId);
+        $this->output['provider'] = $provider;
+        $this->output['provider_method'] = $provider->defaultInitializeMethod();
+
+        return $provider;
     }
 
     public function amount() {
@@ -239,8 +256,15 @@ class PayLinkPaymentGateway {
             }
         }
 
-        $distributeMethod = $this->output['distribute'];
-        return $this->$distributeMethod($output) ?? throw new Exception("Something went worng! Please try again.");
+        $provider = $this->output['provider'] ?? null;
+        if(!$provider instanceof PaymentProviderInterface) {
+            throw new Exception("Payment provider not available.");
+        }
+
+        return $provider->initialize($this, [
+            'output' => $output,
+            'method' => $this->output['provider_method'] ?? null,
+        ]) ?? throw new Exception("Something went worng! Please try again.");
     }
 
     public function authenticateTempData()
@@ -296,42 +320,12 @@ class PayLinkPaymentGateway {
         $this->payLinkGateway();
         $this->output['tempData'] = $tempData;
 
-        if($type == 'stripe'){
-            if(method_exists(Stripe::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'flutterWave'){
-            if(method_exists(FlutterwaveTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'sslcommerz'){
-            if(method_exists(SslcommerzTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'razorpay'){
-            if(method_exists(RazorTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'pagadito'){
-            if(method_exists(PagaditoTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'coingate'){
-            if(method_exists(CoinGate::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'perfect-money'){
-            if(method_exists(PerfectMoney::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }elseif($type == 'paystack'){
-            if(method_exists(PaystackTrait::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
-        }else{
-            if(method_exists(Paypal::class,$method_name)) {
-                return $this->$method_name($this->output);
-            }
+        $provider = $this->output['provider'] ?? null;
+        if($provider instanceof PaymentProviderInterface) {
+            return $provider->capture($this, [
+                'method' => $method_name,
+                'payload' => $this->output,
+            ]);
         }
 
         throw new Exception("Response method ".$method_name."() does not exists.");
@@ -444,10 +438,20 @@ class PayLinkPaymentGateway {
     }
 
     public function api() {
-        $output               = $this->output;
-        $output['distribute'] = $this->gatewayDistribute() . "Api";
-        $method               = $output['distribute'];
-        $response             = $this->$method($output);
+        $output = $this->output;
+        $provider = $this->output['provider'] ?? $this->gatewayDistribute();
+
+        if(!$provider instanceof PaymentProviderInterface) {
+            throw new Exception("Payment provider not available.");
+        }
+
+        $baseMethod = $this->output['provider_method'] ?? $provider->defaultInitializeMethod();
+        $apiMethod = $baseMethod ? $baseMethod . 'Api' : null;
+
+        $response = $provider->initialize($this, [
+            'output' => $output,
+            'method' => $apiMethod,
+        ]);
         $output['response']   = $response;
         $this->output         = $output;
         return $this;
@@ -475,7 +479,15 @@ class PayLinkPaymentGateway {
         if($reference == PaymentGatewayConst::CALLBACK_HANDLE_INTERNAL) {
             $gateway = PaymentGatewayModel::gateway($gateway_name)->first();
             $callback_response_receive_method = $this->getCallbackResponseMethod($gateway);
-            return $this->$callback_response_receive_method($callback_data, $gateway);
+            $serviceId = PaymentGatewayConst::register(Str::lower($gateway_name));
+            if(!$serviceId) {
+                throw new Exception("Callback provider not registered.");
+            }
+            $provider = $this->providerResolver->resolve($serviceId);
+            return $provider->capture($this, [
+                'method' => $callback_response_receive_method,
+                'payload' => ['arguments' => [$callback_data, $gateway]],
+            ]);
         }
         $transaction = Transaction::where('callback_ref',$reference)->first();
         $this->output['callback_ref']       = $reference;
@@ -518,7 +530,13 @@ class PayLinkPaymentGateway {
             $this->request_data = $validator_data;
             $this->payLinkGateway();
             $callback_response_receive_method = $this->getCallbackResponseMethod($gateway);
-            return $this->$callback_response_receive_method($reference, $callback_data, $this->output);
+            $provider = $this->output['provider'] ?? null;
+            if($provider instanceof PaymentProviderInterface) {
+                return $provider->capture($this, [
+                    'method' => $callback_response_receive_method,
+                    'payload' => ['arguments' => [$reference, $callback_data, $this->output]],
+                ]);
+            }
         }
         logger(__("Gateway not found") , [
             "reference"     => $reference,

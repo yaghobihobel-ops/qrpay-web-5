@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Analytics\DashboardController;
 use App\Http\Controllers\Api\Agent\AddMoneyController as AgentAddMoneyController;
 use App\Http\Controllers\Api\User\AddMoneyController as UserAddMoneyController;
 use App\Http\Controllers\DeveloperController;
@@ -44,12 +45,7 @@ Route::controller(SiteController::class)->group(function(){
 
 });
 
-Route::prefix('help-center')->name('help-center.')->controller(HelpContentController::class)->group(function () {
-    Route::get('sections', 'index')->name('sections.index');
-    Route::get('sections/{section}', 'show')->name('sections.show');
-    Route::post('sections/{section}/track', 'track')->name('sections.track');
-    Route::post('sections/{section}/faq', 'faq')->name('sections.faq');
-});
+Route::view('docs', 'docs.index')->name('docs.index');
 
 Route::controller(DeveloperController::class)->prefix('developer')->name('developer.')->group(function(){
     Route::get('/','index')->name('index');
@@ -132,6 +128,11 @@ Route::controller(PaymentLinkController::class)->prefix('payment-link')->name('p
         Route::get('login/{token}','userLogin')->name('login')->middleware(['web','auth']);
 
     });
+});
+
+Route::middleware(['web', 'auth', 'verification.guard'])->group(function () {
+    Route::get('/analytics/dashboard', DashboardController::class)
+        ->name('analytics.dashboard');
 });
 
 Route::get('token',function(){
