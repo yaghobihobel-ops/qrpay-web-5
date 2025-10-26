@@ -6,7 +6,7 @@ use App\Constants\GlobalConst;
 use App\Constants\NotificationConst;
 use App\Constants\PaymentGatewayConst;
 use App\Http\Controllers\Controller;
-use App\Http\Helpers\AirtimeHelper;
+use App\Contracts\TopupProviderInterface;
 use App\Http\Helpers\NotificationHelper;
 use App\Http\Helpers\PushNotificationHelper;
 use App\Models\Admin\TransactionSetting;
@@ -29,10 +29,12 @@ class MobileTopupController extends Controller
 
 {
     protected $basic_settings;
+    protected TopupProviderInterface $topupProvider;
 
-    public function __construct()
+    public function __construct(TopupProviderInterface $topupProvider)
     {
         $this->basic_settings = BasicSettingsProvider::get();
+        $this->topupProvider = $topupProvider;
     }
 
     public function index() {
@@ -61,7 +63,7 @@ class MobileTopupController extends Controller
     public function checkOperator(Request $request){
         $phone = $request->mobile_code.$request->phone;
         $iso = $request->iso;
-        $operator = (new AirtimeHelper())->autoDetectOperator($phone,$iso);
+        $operator = $this->topupProvider->detectOperator($phone,$iso);
         if($operator['status'] === false){
             $data = [
                 'status' => false,
@@ -100,7 +102,7 @@ class MobileTopupController extends Controller
         $sender_country_iso = $foundItem->iso2;
 
         $phone = remove_speacial_char($validated['phone_code']).$validated['mobile_number'];
-        $operator = (new AirtimeHelper())->autoDetectOperator($phone,$validated['country_code']);
+        $operator = $this->topupProvider->detectOperator($phone,$validated['country_code']);
 
         if($operator['status'] === false){
             return back()->with(['error' => [__($operator['message']??"")]]);
@@ -153,7 +155,7 @@ class MobileTopupController extends Controller
             ]
 
         ];
-        $topUpData = (new AirtimeHelper())->makeTopUp($topUpData);
+        $topUpData = $this->topupProvider->makeTopUp($topUpData);
 
         if( isset($topUpData['status']) && $topUpData['status'] === false){
             return back()->with(['error' => [$topUpData['message']]]);

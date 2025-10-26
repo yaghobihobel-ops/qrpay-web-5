@@ -22,12 +22,17 @@ use App\Http\Controllers\Api\User\StripeVirtualController;
 use App\Http\Controllers\Api\User\SudoVirtualCardController;
 use App\Http\Controllers\Api\User\TransactionController;
 use App\Http\Controllers\Api\User\UserController;
+use App\Http\Controllers\Api\KpiController;
+use App\Http\Controllers\Api\PaymentRouteRecommendationController;
+use App\Http\Controllers\Api\RiskDecisionController;
 use App\Http\Controllers\Api\User\VirtualCardController;
 use App\Http\Controllers\Api\User\RequestMoneyController;
 use App\Http\Controllers\Api\User\StrowalletVirtualCardController;
 use App\Http\Helpers\Api\Helpers;
 use App\Models\Admin\SetupKyc;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Http\Controllers\Api\Support\SupportBotController;
+use App\Http\Controllers\Api\Support\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 /*
@@ -40,6 +45,10 @@ use Illuminate\Support\Facades\Artisan;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+
+Route::get('version-info', function () {
+    return response()->json(['version' => 'v1']);
+});
 
 Route::get('/clear-cache', function() {
     Artisan::call('cache:clear');
@@ -66,6 +75,17 @@ Route::controller(AppSettingsController::class)->prefix("app-settings")->group(f
     Route::get('/','appSettings');
     Route::get('languages','languages')->withoutMiddleware(['system.maintenance.api']);
 });
+
+Route::prefix('support')->group(function () {
+    Route::post('bot/message', [SupportBotController::class, 'message']);
+    Route::post('tickets', [SupportTicketController::class, 'store']);
+    Route::get('tickets/{token}', [SupportTicketController::class, 'show']);
+    Route::post('tickets/{token}/feedback', [SupportTicketController::class, 'feedback']);
+});
+
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->get('analytics/kpis', KpiController::class);
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->post('payments/routes/recommend', PaymentRouteRecommendationController::class);
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->post('risk/decision', RiskDecisionController::class);
 Route::controller(AddMoneyController::class)->prefix("add-money")->group(function(){
     Route::get('success/response/paypal/{gateway}','success')->name('api.payment.success');
     Route::get("cancel/response/paypal/{gateway}",'cancel')->name('api.payment.cancel');
@@ -87,7 +107,7 @@ Route::prefix('user')->group(function(){
     });
 
     Route::post('register',[LoginController::class,'register'])->middleware(['user.registration.permission']);
-    Route::post('login',[LoginController::class,'login']);
+    Route::post('login',[LoginController::class,'login'])->middleware('throttle:user-login');
 
     //forget password for email
     Route::prefix('forget')->group(function(){
@@ -246,7 +266,7 @@ Route::prefix('user')->group(function(){
             });
 
             //Withdraw Money
-            Route::controller(MoneyOutController::class)->prefix('withdraw')->group(function(){
+            Route::controller(MoneyOutController::class)->prefix('withdraw')->middleware('domain.rate_limit:withdrawal,api')->group(function(){
                 Route::get('info','moneyOutInfo');
                 Route::post('insert','moneyOutInsert')->middleware('api.kyc');
                 Route::post('manual/confirmed','moneyOutConfirmed')->name('api.withdraw.manual.confirmed')->middleware('api.kyc');
@@ -257,19 +277,19 @@ Route::prefix('user')->group(function(){
                Route::get('get/flutterwave/bank/branches','getFlutterWaveBankBranches');
             });
              //Make Payment
-             Route::controller(MakePaymentController::class)->prefix('make-payment')->group(function(){
+            Route::controller(MakePaymentController::class)->prefix('make-payment')->middleware('domain.rate_limit:payment,make-payment')->group(function(){
                 Route::get('info','makePaymentInfo');
                 Route::post('check/merchant','checkMerchant');
                 Route::post('merchants/scan','qrScan');
                 Route::post('confirmed','confirmedPayment')->middleware('api.kyc');
             });
              //Bill Pay
-            Route::controller(BillPayController::class)->prefix('bill-pay')->group(function(){
+            Route::controller(BillPayController::class)->prefix('bill-pay')->middleware('domain.rate_limit:payment,bill-pay')->group(function(){
                 Route::get('info','billPayInfo');
                 Route::post('confirmed','billPayConfirmed')->middleware('api.kyc');
             });
              //mobile top up
-            Route::controller(MobileTopupController::class)->prefix('mobile-topup')->group(function(){
+            Route::controller(MobileTopupController::class)->prefix('mobile-topup')->middleware('domain.rate_limit:topup,mobile-topup')->group(function(){
                 Route::get('info','topUpInfo');
                 Route::post('confirmed','topUpConfirmed')->middleware('api.kyc');
                 //automatic method
@@ -279,7 +299,7 @@ Route::prefix('user')->group(function(){
                 });
             });
             //gift card
-            Route::controller(GiftCardController::class)->prefix('gift-card')->group(function(){
+            Route::controller(GiftCardController::class)->prefix('gift-card')->middleware('domain.rate_limit:card,gift-card')->group(function(){
                 Route::get('/', 'index');
                 Route::get('all', 'allGiftCard');
                 Route::get('search/', 'searchGiftCard');

@@ -5,6 +5,9 @@ namespace App\Http\Controllers\User\Auth;
 use App\Constants\ExtensionConst;
 use App\Http\Controllers\Controller;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Security\DeviceFingerprintService;
+use App\Services\Security\SessionBindingService;
+use PragmaRX\Google2FA\Google2FA;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +31,30 @@ class LoginController extends Controller
     protected $request_data;
 
     use AuthenticatesUsers, LoggedInUsers;
+
+    protected function enforceSensitiveSecurity($user, $fingerprint)
+    {
+        $isSensitive = (bool) ($user->is_sensitive ?? false);
+        $role = $user->role ?? null;
+        $sensitiveRoles = config('security.sensitive_user_roles', []);
+
+        if (! $isSensitive && (! $role || ! in_array($role, $sensitiveRoles, true))) {
+            return;
+        }
+
+        if (! $user->two_factor_secret) {
+            $secret = app(Google2FA::class)->generateSecretKey();
+            $user->forceFill(['two_factor_secret' => $secret])->save();
+        }
+
+        if (! $user->two_factor_status) {
+            $user->forceFill(['two_factor_status' => true])->save();
+        }
+
+        if (config('security.device_fingerprinting.force_mfa_on_new_device') && $fingerprint && ! $fingerprint->is_trusted) {
+            $user->forceFill(['two_factor_verified' => false])->save();
+        }
+    }
 
     public function showLoginForm() {
         $page_title =__("User Login");
@@ -126,12 +153,15 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user)
     {
+        $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+        app(SessionBindingService::class)->bind($request, $user, $fingerprint);
+        $this->enforceSensitiveSecurity($user, $fingerprint);
         $user->update([
             'two_factor_verified'   => false,
         ]);
         $user->createQr();
         $this->refreshUserWallets($user);
-        $this->createLoginLog($user);
+        $this->createLoginLog($user, $fingerprint);
         return redirect()->intended(route('user.dashboard'));
     }
 }
