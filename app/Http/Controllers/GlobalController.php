@@ -9,6 +9,7 @@ use App\Models\Admin\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\UserWallet;
+use App\Services\Payout\PayoutProviderInterface;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -17,6 +18,10 @@ use Jenssegers\Agent\Facades\Agent;
 
 class GlobalController extends Controller
 {
+    public function __construct(protected PayoutProviderInterface $payoutProvider)
+    {
+    }
+
     /**
      * Funtion for get state under a country
      * @param country_id
@@ -92,46 +97,11 @@ class GlobalController extends Controller
         return Response::success($success,$user,200);
     }
     public function webHookResponse(Request $request){
-        $response_data = $request->all();
-        $transaction = Transaction::where('callback_ref',$response_data['data']['reference'])->first();
+        $this->payoutProvider->handleWebhook($request->all());
 
-        $update_temp_data = json_decode(json_encode($transaction->details),true);
-        $update_temp_data['callback_data']  = $response_data;
-
-
-        if($response_data['data']['status'] === "SUCCESSFUL" && $transaction->request_amount > $transaction->creator_wallet->balance ){
-            $transaction->update([
-                'status'    => PaymentGatewayConst::STATUSFAILD,
-                'details'   => $update_temp_data,
-                'reject_reason'   => "Insufficient Balance In Your Wallet"??null,
-                'available_balance' => $transaction->creator_wallet->balance,
-            ]);
-            logger("Transaction Status: " . PaymentGatewayConst::STATUSFAILD." Reason: "."Insufficient Balance In Your Wallet"??"");
-
-        }elseif($response_data['data']['status'] === "SUCCESSFUL"){
-            $reduce_balance = ($transaction->creator_wallet->balance - $transaction->request_amount);
-            $transaction->update([
-                'status'            => PaymentGatewayConst::STATUSSUCCESS,
-                'details'           => $update_temp_data,
-                'available_balance' => $reduce_balance,
-            ]);
-
-            $transaction->creator_wallet->update([
-                'balance'   => $reduce_balance,
-            ]);
-            logger("Transaction Status: " . $response_data['data']['status']);
-        }elseif($response_data['data']['status'] === "FAILED"){
-
-            $transaction->update([
-                'status'    => PaymentGatewayConst::STATUSFAILD,
-                'details'   => $update_temp_data,
-                'reject_reason'   => $response_data['data']['complete_message']??null,
-                'available_balance' => $transaction->creator_wallet->balance,
-            ]);
-            logger("Transaction Status: " . $response_data['data']['status']." Reason: ".$response_data['data']['complete_message']??"");
-        }
-
-
+        return response()->json([
+            'status' => 'received',
+        ]);
     }
     public function setCookie(Request $request){
         $userAgent = $request->header('User-Agent');

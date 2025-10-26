@@ -14,6 +14,7 @@ use Buglinjo\LaravelWebp\Facades\Webp;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Password;
 use App\Models\Admin\AdminNotification;
 use App\Constants\NotificationConst;
 use App\Constants\PaymentGatewayConst;
@@ -47,6 +48,7 @@ use App\Models\UserSupportTicket;
 use App\Models\UserWallet;
 use App\Models\VirtualCard;
 use App\Models\VirtualCardApi;
+use App\Services\Monitoring\DomainInstrumentation;
 use App\Notifications\Agent\Auth\SendAuthorizationCode as AgentAuthSendAuthorizationCode;
 use App\Notifications\Merchant\Auth\SendAuthorizationCode as AuthSendAuthorizationCode;
 use App\Notifications\User\Auth\SendAuthorizationCode;
@@ -2090,6 +2092,14 @@ function module_access_merchant_api($key)
 }
 //flutterwave automatic withdrawal helper functions
 function getFlutterwaveBanks($iso2){
+    $instrumentation = app(DomainInstrumentation::class);
+    $config = config('withdrawal', []);
+    $provider = 'flutterwave';
+    $context = $instrumentation->startOperation('withdrawal', 'fetch_flutterwave_banks', $config, [
+        'provider' => $provider,
+        'country' => $iso2,
+    ]);
+
     $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
     $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
     $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
@@ -2109,10 +2119,20 @@ function getFlutterwaveBanks($iso2){
     ));
 
     $response = curl_exec($curl);
+    if ($response === false) {
+        $error = curl_error($curl);
+        curl_close($curl);
+        $exception = new \RuntimeException($error ?: 'Unable to fetch Flutterwave banks');
+        $instrumentation->recordFailure($context, $exception, ['curl_error' => $error]);
+        throw $exception;
+    }
     curl_close($curl);
     $banks = json_decode($response,true);
 
-    return filterBanks($banks['data']??[]);
+    $filtered = filterBanks($banks['data']??[]);
+    $instrumentation->recordSuccess($context, ['bank_count' => is_array($filtered) ? count($filtered) : 0]);
+
+    return $filtered;
 }
 
 function filterBanks($banks)
@@ -2139,36 +2159,14 @@ function filterBanks($banks)
     return $filtered_banks;
 }
 function checkBankAccount($account_number,$bank_code){
+    $gateway = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
 
-    $cardApi = PaymentGateway::where('type',"AUTOMATIC")->where('alias','flutterwave-money-out')->first();
-    $secretKey = getPaymentCredentials($cardApi->credentials,'Secret key');
-    $base_url =getPaymentCredentials($cardApi->credentials,'Base Url');
-    $ch = curl_init();
-    $url =   $base_url.'/accounts/resolve';
-    $data = [
-        "account_number" => $account_number,
-        "account_bank" => $bank_code
-    ];
+    /** @var \App\Services\Payout\PayoutProviderInterface $service */
+    $service = app(\App\Services\Payout\PayoutProviderInterface::class);
 
-    $headers = [
-        "Authorization: Bearer ". $secretKey,
-        'Content-Type: application/json'
-    ];
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        return curl_errno($ch);
-    } else {
-        $data = json_decode($response,true);
-        return $data;
-    }
-
-    curl_close($ch);
+    return $service->verifyBankAccount($account_number, $bank_code, [
+        'gateway' => $gateway,
+    ]);
 }
 function getPaymentCredentials($credentials,$label){
     $data = null;
@@ -3029,4 +3027,38 @@ function get_wallet_precision($default_currency = null){
         return $default_currency->type == "CRYPTO" ? 2  : 8;
     }
     return 2;
+}
+
+if (! function_exists('security_password_rules')) {
+    function security_password_rules(bool $confirmed = true): array
+    {
+        $policy = config('security.password_policy');
+        $rule = Password::min($policy['min_length'] ?? 12);
+
+        if (($policy['require_lowercase'] ?? true) || ($policy['require_uppercase'] ?? true)) {
+            $rule = $rule->letters();
+        }
+
+        if ($policy['require_uppercase'] ?? true) {
+            $rule = $rule->mixedCase();
+        }
+
+        if ($policy['require_number'] ?? true) {
+            $rule = $rule->numbers();
+        }
+
+        if ($policy['require_symbol'] ?? true) {
+            $rule = $rule->symbols();
+        }
+
+        $rule = $rule->uncompromised();
+
+        $rules = ['required', $rule];
+
+        if ($confirmed) {
+            $rules[] = 'confirmed';
+        }
+
+        return $rules;
+    }
 }

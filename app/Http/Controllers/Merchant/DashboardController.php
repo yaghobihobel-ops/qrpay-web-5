@@ -9,14 +9,22 @@ use App\Models\Merchants\SandboxWallet;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\TracksQueryPerformance;
 
 class DashboardController extends Controller
 {
+    use TracksQueryPerformance;
     public function index()
     {
-        $page_title = __("Merchant Dashboard");
-        $baseCurrency = Currency::default();
-        $transactions = Transaction::merchantAuth()->latest()->take(5)->get();
+        $this->startQueryMonitoring();
+
+        try {
+            $page_title = __("Merchant Dashboard");
+            $baseCurrency = Currency::default();
+            $transactions = Transaction::merchantAuth()
+                ->with(['creator', 'creator_wallet.currency', 'charge', 'currency', 'gateway_currency.gateway'])
+                ->latest()
+                ->paginate(10);
         $money_out_amount = Transaction::merchantAuth()->where('type', PaymentGatewayConst::TYPEMONEYOUT)->where('status', 1)->sum('request_amount');
         $receive_money = Transaction::merchantAuth()->where('type', PaymentGatewayConst::TYPEMAKEPAYMENT)->where('status', 1)->where('attribute','RECEIVED')->sum('request_amount');
         $total_transaction = Transaction::merchantAuth()->where('status', 1)->count();
@@ -78,7 +86,10 @@ class DashboardController extends Controller
             'chart_one_data'   => $chart_one_data,
             'month_day'        => $month_day,
         ];
-        return view('merchant.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData'));
+            return view('merchant.dashboard',compact("page_title","baseCurrency",'transactions','data','chartData'));
+        } finally {
+            $this->stopQueryMonitoring('merchant.dashboard');
+        }
     }
 
     public function logout(Request $request) {

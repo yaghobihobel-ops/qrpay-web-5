@@ -13,3 +13,7 @@ Current Version: 5.0.0
 Please Use This Commands On Your Terminal To Update Full System
 1. To Run project Please Run This Command On Your Terminal
     composer update && composer dumpautoload && php artisan migrate:fresh --seed && php artisan passport:install --force
+
+## Branch synchronization
+
+All recent pull request changes have been merged into the `main` branch so it now mirrors the reviewed updates from the feature workflows. This ensures the default branch contains the latest application improvements without requiring additional manual steps.

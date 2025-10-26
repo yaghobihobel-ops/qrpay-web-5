@@ -4,10 +4,12 @@ namespace App\Http\Helpers;
 
 use App\Constants\GlobalConst;
 use App\Models\Admin\ReloadlyApi;
+use App\Services\Monitoring\DomainInstrumentation;
 use Exception;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 class GiftCardHelper {
 
@@ -53,8 +55,13 @@ class GiftCardHelper {
         "RANGE" => "RANGE",
     ];
 
-    public function __construct()
+    protected DomainInstrumentation $instrumentation;
+
+    protected string $domain = 'card';
+
+    public function __construct(?DomainInstrumentation $instrumentation = null)
     {
+        $this->instrumentation = $instrumentation ?: app(DomainInstrumentation::class);
         $this->api = ReloadlyApi::reloadly()->giftCard()->first();
         $this->setConfig();
         $this->accessToken();
@@ -261,19 +268,43 @@ class GiftCardHelper {
 
         $base_url = $this->config['request_url'];
         $endpoint = $base_url . "/orders";
+        $config = config($this->domain, []);
+        $context = $this->instrumentation->startOperation($this->domain, 'create_giftcard_order', $config, [
+            'provider' => $this->api->provider ?? data_get($config, 'credentials.provider', 'unknown'),
+            'product_id' => data_get($data, 'productId'),
+            'quantity' => data_get($data, 'quantity'),
+        ]);
 
-        $response = Http::withHeaders([
-            "Authorization" => "Bearer " . $this->access_token,
-            "Accept"        => "application/com.reloadly.giftcards-v1+json",
-        ])->post($endpoint, $data)->throw(function(Response $response, RequestException $exception) {
+        try {
+            $response = Http::withHeaders([
+                "Authorization" => "Bearer " . $this->access_token,
+                "Accept"        => "application/com.reloadly.giftcards-v1+json",
+            ])->post($endpoint, $data)->throw(function(Response $response, RequestException $exception) {
 
-            $response_array = $response->json();
-            $message = $response_array['message'] ?? "";
+                $response_array = $response->json();
+                $message = $response_array['message'] ?? "";
 
-            throw new Exception($message);
-        })->json();
+                throw new Exception($message);
+            })->json();
+        } catch (Exception $exception) {
+            $payload = [
+                'status' => false,
+                'message' => $exception->getMessage(),
+            ];
+            $this->instrumentation->recordFailure($context, $exception, $payload);
+            return $payload;
+        }
 
-        if(!is_array($response)) throw new Exception(__("Something went wrong! Please try again."));
+        if(!is_array($response)) {
+            $exception = new Exception(__("Something went wrong! Please try again."));
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+
+        $this->instrumentation->recordSuccess($context, [
+            'transaction_id' => $response['transactionId'] ?? null,
+            'status' => $response['status'] ?? null,
+        ]);
 
         return $response;
     }
@@ -287,19 +318,39 @@ class GiftCardHelper {
 
         $base_url = $this->config['request_url'];
         $endpoint = $base_url . "/orders/transactions/$trx_id/cards";
+        $config = config($this->domain, []);
+        $context = $this->instrumentation->startOperation($this->domain, 'redeem_giftcard_codes', $config, [
+            'provider' => $this->api->provider ?? data_get($config, 'credentials.provider', 'unknown'),
+            'transaction_id' => $trx_id,
+        ]);
 
-        $response = Http::withHeaders([
-            "Authorization" => "Bearer " . $this->access_token,
-            "Accept"        => "application/com.reloadly.giftcards-v1+json",
-        ])->get($endpoint)->throw(function(Response $response, RequestException $exception) {
+        try {
+            $response = Http::withHeaders([
+                "Authorization" => "Bearer " . $this->access_token,
+                "Accept"        => "application/com.reloadly.giftcards-v1+json",
+            ])->get($endpoint)->throw(function(Response $response, RequestException $exception) {
 
-            $response_array = $response->json();
-            $message = $response_array['message'] ?? "";
+                $response_array = $response->json();
+                $message = $response_array['message'] ?? "";
 
-            throw new Exception($message);
-        })->json();
+                throw new Exception($message);
+            })->json();
+        } catch (Exception $exception) {
+            $payload = [
+                'status' => false,
+                'message' => $exception->getMessage(),
+            ];
+            $this->instrumentation->recordFailure($context, $exception, $payload);
+            return $payload;
+        }
 
-        if(!is_array($response)) throw new Exception(__("Something went wrong! Please try again."));
+        if(!is_array($response)) {
+            $exception = new Exception(__("Something went wrong! Please try again."));
+            $this->instrumentation->recordFailure($context, $exception);
+            throw $exception;
+        }
+
+        $this->instrumentation->recordSuccess($context, ['cards' => is_countable($response) ? count($response) : null]);
 
         return $response;
     }
