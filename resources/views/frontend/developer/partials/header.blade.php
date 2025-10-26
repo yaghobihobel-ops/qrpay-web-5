@@ -21,6 +21,9 @@
                         <a href="{{ setRoute('contact') }}">{{ __("Support") }}</a>
                     </li>
                 </ul>
+                <div class="ms-3 d-none d-md-flex align-items-center">
+                    <x-help.launcher section="developer_api" :label="__('API help')" icon="las la-book-reader" />
+                </div>
                 <div class="developer-header-action">
                     @auth("merchant")
                     <a href="{{ setRoute('merchant.dashboard') }}" class="btn--base"><i class="las la-user-edit me-1"></i>{{ __("Merchant Dashboard") }}</a>

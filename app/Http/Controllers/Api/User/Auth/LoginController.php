@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use App\Traits\User\LoggedInUsers;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -20,10 +22,12 @@ use App\Traits\User\RegisteredUsers;
 use App\Traits\AdminNotifications\AuthNotifications;
 use App\Traits\ControlDynamicInputFields;
 use App\Services\Security\DeviceFingerprintService;
+use App\Traits\Security\LogsSecurityEvents;
+use Illuminate\Support\Facades\RateLimiter;
 
 class LoginController extends Controller
 {
-    use  LoggedInUsers ,RegisteredUsers,ControlDynamicInputFields,AuthNotifications;
+    use  LoggedInUsers ,RegisteredUsers,ControlDynamicInputFields,AuthNotifications, LogsSecurityEvents;
     protected $basic_settings;
 
     public function __construct()
@@ -37,17 +41,47 @@ class LoginController extends Controller
         ]);
 
         if($validator->fails()){
+            $this->logSecurityWarning('api_user_login_validation_failed', [
+                'identifier' => (string) $request->input('email'),
+                'errors' => $validator->errors()->all(),
+                'context' => 'user_api',
+                'ip' => $request->ip(),
+            ]);
             $error =  ['error'=>$validator->errors()->all()];
             return ApiHelpers::validation($error);
         }
 
+        if ($this->isRateLimited($request)) {
+            return $this->sendLockoutResponse($request);
+        }
+
         $user = User::where('email',$request->email)->first();
+        $throttleKey = $this->loginThrottleKey($request);
         if(!$user){
+            RateLimiter::hit($throttleKey);
+            $attempts = RateLimiter::attempts($throttleKey);
+            $this->logSecurityWarning('api_user_login_failed', [
+                'identifier' => $request->email,
+                'reason' => 'user_not_found',
+                'attempts' => $attempts,
+                'context' => 'user_api',
+                'ip' => $request->ip(),
+            ]);
+            $this->notifyLoginThresholdExceeded($request, $request->email, $attempts, [
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__("User doesn't exists.")]];
             return ApiHelpers::validation($error);
         }
         if (Hash::check($request->password, $user->password)) {
             if($user->status == 0){
+                $this->logSecurityWarning('api_user_login_blocked', [
+                    'user_id' => $user->id,
+                    'identifier' => $request->email,
+                    'reason' => 'account_suspended',
+                    'context' => 'user_api',
+                    'ip' => $request->ip(),
+                ]);
                 $error = ['error'=>[__('Account Has been Suspended')]];
                 return ApiHelpers::validation($error);
             }
@@ -58,16 +92,43 @@ class LoginController extends Controller
             $this->createLoginLog($user, $fingerprint);
             $this->createQr($user);
             $token = $user->createToken('user_token')->accessToken;
+            RateLimiter::clear($throttleKey);
+            $this->logSecurityInfo('api_user_login_success', [
+                'user_id' => $user->id,
+                'identifier' => $request->email,
+                'token_created' => true,
+                'context' => 'user_api',
+                'ip' => $request->ip(),
+            ]);
+
+            $this->clearLoginAttempts($request);
 
             $data = ['token' => $token, 'user' => $user, ];
             $message =  ['success'=>[__('Login Successful')]];
             return ApiHelpers::success($data,$message);
 
         } else {
+            RateLimiter::hit($throttleKey);
+            $attempts = RateLimiter::attempts($throttleKey);
+            $this->logSecurityWarning('api_user_login_failed', [
+                'identifier' => $request->email,
+                'reason' => 'invalid_password',
+                'attempts' => $attempts,
+                'context' => 'user_api',
+                'ip' => $request->ip(),
+            ]);
+            $this->notifyLoginThresholdExceeded($request, $request->email, $attempts, [
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__('Incorrect Password')]];
             return ApiHelpers::error($error);
         }
 
+    }
+
+    protected function loginThrottleKey(Request $request): string
+    {
+        return sprintf('api_user_login|%s|%s', strtolower((string) $request->input('email')), $request->ip());
     }
 
     public function register(Request $request){

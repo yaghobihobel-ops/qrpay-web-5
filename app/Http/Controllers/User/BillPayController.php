@@ -19,7 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Helpers\PushNotificationHelper;
 use App\Http\Helpers\UtilityHelper;
-use App\Jobs\ProcessBillPayment;
+use App\Jobs\BillPay\SyncBillPaymentStatus;
 use App\Models\Admin\ExchangeRate;
 use App\Notifications\Admin\ActivityNotification;
 use App\Notifications\User\BillPay\BillPayMailAutomatic;
@@ -322,9 +322,11 @@ class BillPayController extends Controller
             //admin notification
             $this->adminNotificationAutomatic($trx_id,$charges,$biller,$request_data,$user,$payBill);
              // Dispatch the job to process the payment status
-            ProcessBillPayment::dispatch($transaction)->delay(now()->addSeconds(scheduleBillPayApiCall($payBill)));
+            SyncBillPaymentStatus::dispatch($transaction)
+                ->onQueue('bill-payments')
+                ->delay(now()->addSeconds(scheduleBillPayApiCall($payBill)));
             //for testing
-            // ProcessBillPayment::dispatch($transaction)->delay(now()->addSeconds(10));
+            // SyncBillPaymentStatus::dispatch($transaction)->delay(now()->addSeconds(10));
             return redirect()->route("user.bill.pay.index")->with(['success' => [__('Bill Pay Request Successful')]]);
         }catch(Exception $e){
             return back()->with(['error' => [__("Something went wrong! Please try again.")]]);
