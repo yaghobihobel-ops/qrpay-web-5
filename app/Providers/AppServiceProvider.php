@@ -3,9 +3,17 @@
 namespace App\Providers;
 
 use App\Constants\ExtensionConst;
+use App\Models\Transaction;
+use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Domain\ProviderOverrideRepository;
 use App\Services\Monitoring\DomainInstrumentation;
+use App\Services\Orchestration\PaymentRouter;
+use App\Services\Orchestration\Providers\AlipayAdapter;
+use App\Services\Orchestration\Providers\BluBankAdapter;
+use App\Services\Orchestration\Providers\GenericPspAdapter;
+use App\Services\Orchestration\Providers\YoomoneaAdapter;
+use App\Services\Pricing\FeeEngine;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -24,7 +32,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton(PaymentRouter::class, function ($app) {
+            return new PaymentRouter([
+                new AlipayAdapter(),
+                new BluBankAdapter(),
+                new GenericPspAdapter('ContingencyPay', ['uptime' => 99.0, 'latency' => 260], ['success_rate' => 0.95]),
+                new YoomoneaAdapter(),
+            ], $app->make(FeeEngine::class));
+        });
     }
 
     /**
@@ -42,6 +57,8 @@ class AppServiceProvider extends ServiceProvider
 
         //laravel extend validation rules
         $this->extendValidationRule();
+
+        Transaction::observe(TransactionObserver::class);
     }
 
     protected function registerResponseMacros(): void

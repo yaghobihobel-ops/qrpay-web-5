@@ -214,6 +214,95 @@
                     margin: 0.5rem;
                 }
             }
+
+            #helpCenterModal .help-center-tab-switcher {
+                display: inline-flex;
+                align-items: center;
+                gap: .5rem;
+                margin-bottom: 1rem;
+            }
+
+            #helpCenterModal .help-center-tab-switcher .help-center-tab {
+                border: 1px solid var(--bs-border-color, #dee2e6);
+                background-color: #fff;
+                color: inherit;
+                padding: .35rem .85rem;
+                border-radius: 999px;
+                font-weight: 500;
+                transition: all .2s ease;
+            }
+
+            #helpCenterModal .help-center-tab-switcher .help-center-tab.active {
+                background-color: var(--bs-primary, #0d6efd);
+                border-color: var(--bs-primary, #0d6efd);
+                color: #fff;
+                box-shadow: 0 0 0 0.1rem rgba(13, 110, 253, 0.15);
+            }
+
+            #helpCenterModal .help-center-section {
+                display: none;
+            }
+
+            #helpCenterModal .help-center-section.active {
+                display: block;
+            }
+
+            #helpCenterModal .help-center-chat {
+                display: flex;
+                flex-direction: column;
+                min-height: 320px;
+            }
+
+            #helpCenterModal .help-center-chat-thread {
+                flex: 1 1 auto;
+                overflow-y: auto;
+                border: 1px solid rgba(0, 0, 0, 0.08);
+                border-radius: .75rem;
+                padding: 1rem;
+                background-color: rgba(248, 249, 250, 0.65);
+                max-height: 45vh;
+            }
+
+            #helpCenterModal .help-center-chat-bubble {
+                display: inline-block;
+                margin-bottom: .75rem;
+                padding: .65rem .85rem;
+                border-radius: .95rem;
+                font-size: .95rem;
+                line-height: 1.45;
+                max-width: 80%;
+                box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+                word-break: break-word;
+            }
+
+            #helpCenterModal .help-center-chat-bubble-user {
+                background-color: var(--bs-primary, #0d6efd);
+                color: #fff;
+                margin-left: auto;
+                border-bottom-right-radius: .25rem;
+            }
+
+            #helpCenterModal .help-center-chat-bubble-bot {
+                background-color: #fff;
+                color: inherit;
+                border-bottom-left-radius: .25rem;
+            }
+
+            #helpCenterModal .help-center-chat-form textarea {
+                resize: vertical;
+                min-height: 80px;
+            }
+
+            #helpCenterModal .help-center-handoff-form {
+                border: 1px solid rgba(0, 0, 0, 0.05);
+                border-radius: .75rem;
+                padding: 1rem;
+                background-color: rgba(248, 249, 250, 0.65);
+            }
+
+            #helpCenterModal .help-center-chat-alert {
+                font-size: .9rem;
+            }
         </style>
     @endpush
 @endonce
