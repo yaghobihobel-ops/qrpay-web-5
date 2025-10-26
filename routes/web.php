@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Analytics\DashboardController;
 use App\Http\Controllers\Api\Agent\AddMoneyController as AgentAddMoneyController;
 use App\Http\Controllers\Api\User\AddMoneyController as UserAddMoneyController;
 use App\Http\Controllers\DeveloperController;
+use App\Http\Controllers\HelpContentController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\User\AddMoneyController;
 use App\Http\Controllers\User\PaymentLinkController;
@@ -41,6 +43,15 @@ Route::controller(SiteController::class)->group(function(){
     Route::get('pricing','pricing')->name('pricing')->middleware(['page_setup:pricing']);
     Route::get('section/{parent_id}','headerPage')->name('header.page');
 
+});
+
+Route::prefix('help-center')->name('help-center.')->controller(HelpContentController::class)->group(function () {
+    Route::get('sections', 'index')->name('sections.index');
+    Route::get('sections/{section}', 'show')->name('sections.show');
+    Route::post('sections/{section}/track', 'track')->name('sections.track');
+    Route::post('sections/{section}/complete', 'complete')->name('sections.complete');
+    Route::post('sections/{section}/feedback', 'feedback')->name('sections.feedback');
+    Route::post('sections/{section}/faq', 'faq')->name('sections.faq');
 });
 
 Route::controller(DeveloperController::class)->prefix('developer')->name('developer.')->group(function(){
@@ -124,6 +135,11 @@ Route::controller(PaymentLinkController::class)->prefix('payment-link')->name('p
         Route::get('login/{token}','userLogin')->name('login')->middleware(['web','auth']);
 
     });
+});
+
+Route::middleware(['web', 'auth', 'verification.guard'])->group(function () {
+    Route::get('/analytics/dashboard', DashboardController::class)
+        ->name('analytics.dashboard');
 });
 
 Route::get('token',function(){

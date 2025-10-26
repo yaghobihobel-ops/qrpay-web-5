@@ -63,6 +63,14 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
         ],
 
+        'security' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security.log'),
+            'level' => env('SECURITY_LOG_LEVEL', 'info'),
+            'days' => 30,
+            'tap' => [\App\Logging\SecurityLogTap::class],
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

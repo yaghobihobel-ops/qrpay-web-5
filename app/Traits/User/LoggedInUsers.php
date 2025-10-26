@@ -6,10 +6,13 @@ use App\Models\Admin\Currency;
 use App\Models\DeviceFingerprint;
 use App\Models\UserLoginLog;
 use App\Models\UserWallet;
+use App\Traits\Security\LogsSecurityEvents;
 use Exception;
 use Jenssegers\Agent\Agent;
 
 trait LoggedInUsers {
+
+    use LogsSecurityEvents;
 
     protected function refreshUserWallets($user) {
         $user_wallets = $user->wallets->pluck("currency_id")->toArray();
@@ -60,8 +63,22 @@ trait LoggedInUsers {
 
         try{
             UserLoginLog::create($data);
+            $this->logSecurityInfo('user_login_success', [
+                'user_id' => $user->id,
+                'fingerprint_id' => $fingerprint?->id,
+                'ip' => $client_ip,
+                'city' => $data['city'],
+                'country' => $data['country'],
+                'browser' => $data['browser'],
+                'os' => $data['os'],
+                'context' => 'user_web',
+            ]);
         }catch(Exception $e) {
-            // return false;
+            $this->logSecurityError('user_login_log_failed', [
+                'user_id' => $user->id,
+                'ip' => $client_ip,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 }

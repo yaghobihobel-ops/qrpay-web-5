@@ -6,12 +6,14 @@ use App\Constants\ExtensionConst;
 use App\Http\Controllers\Controller;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Security\DeviceFingerprintService;
+use App\Services\Security\SessionBindingService;
 use PragmaRX\Google2FA\Google2FA;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\User\LoggedInUsers;
+use App\Traits\Security\LogsSecurityEvents;
 
 
 class LoginController extends Controller
@@ -29,7 +31,7 @@ class LoginController extends Controller
 
     protected $request_data;
 
-    use AuthenticatesUsers, LoggedInUsers;
+    use AuthenticatesUsers, LoggedInUsers, LogsSecurityEvents;
 
     protected function enforceSensitiveSecurity($user, $fingerprint)
     {
@@ -126,6 +128,20 @@ class LoginController extends Controller
      */
     protected function sendFailedLoginResponse(Request $request)
     {
+        $identifier = (string) $request->input('credentials');
+        $attempts = method_exists($this, 'limiter') ? $this->limiter()->attempts($this->throttleKey($request)) : 0;
+
+        $this->logSecurityWarning('user_login_failed', [
+            'identifier' => $identifier,
+            'attempts' => $attempts,
+            'ip' => $request->ip(),
+            'context' => 'user_web',
+        ]);
+
+        $this->notifyLoginThresholdExceeded($request, $identifier, $attempts, [
+            'context' => 'user_web',
+        ]);
+
         throw ValidationException::withMessages([
             "credentials" => [trans('auth.failed')],
         ]);
@@ -153,6 +169,7 @@ class LoginController extends Controller
     protected function authenticated(Request $request, $user)
     {
         $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+        app(SessionBindingService::class)->bind($request, $user, $fingerprint);
         $this->enforceSensitiveSecurity($user, $fingerprint);
         $user->update([
             'two_factor_verified'   => false,

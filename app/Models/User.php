@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
+use App\Traits\Auth\HasRolesAndPermissions;
 use App\Traits\User\UserPartials;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, UserPartials;
+    use HasApiTokens, HasFactory, Notifiable, UserPartials, HasRolesAndPermissions;
     protected $appends = ['fullname','userImage','stringStatus','lastLogin','kycStringStatus'];
     protected $dates = ['deleted_at'];
     /**
@@ -154,6 +155,24 @@ class User extends Authenticatable
     public function passwordResets() {
         return $this->hasMany(UserPasswordReset::class,"user_id");
     }
+
+    public function getFeeLevel(): string
+    {
+        if (->is_sensitive) {
+            return "sensitive";
+        }
+
+        if ((int) ->kyc_verified === GlobalConst::VERIFIED) {
+            return "verified";
+        }
+
+        if ((int) ->email_verified === GlobalConst::VERIFIED) {
+            return "trusted";
+        }
+
+        return "standard";
+    }
+
 
     public function scopeGetSocial($query,$credentials) {
         return $query->where("email",$credentials);

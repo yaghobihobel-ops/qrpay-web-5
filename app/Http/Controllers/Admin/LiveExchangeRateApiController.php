@@ -4,18 +4,22 @@ namespace App\Http\Controllers\Admin;
 
 use App\Constants\GlobalConst;
 use App\Http\Controllers\Controller;
-use App\Http\Helpers\CurrencyLayer;
 use App\Http\Helpers\Response;
-use App\Models\Admin\Currency;
 use App\Models\Admin\ExchangeRate;
 use App\Models\Admin\PaymentGatewayCurrency;
 use App\Models\LiveExchangeRateApiSetting;
+use App\Services\Exchange\ExchangeRateProviderInterface;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 class LiveExchangeRateApiController extends Controller
 {
+    public function __construct(protected ExchangeRateProviderInterface $exchangeRateProvider)
+    {
+    }
+
      /**
      * Display a listing of the resource.
      *
@@ -40,12 +44,18 @@ class LiveExchangeRateApiController extends Controller
         $page_title =__("Edit Live Exchange Rate API");
         $provider = LiveExchangeRateApiSetting::where('slug',$slug)->firstOrfail();
         if($provider->slug == GlobalConst::CURRENCY_LAYER){
-            $get_supported_countries  = (new CurrencyLayer())->apiCurrencyList();
+            $currencies = Cache::get(config('exchange.cache.supported_currencies_key', 'exchange:rates:currency-layer:supported-currencies'));
+            if (!$currencies) {
+                $supportedResponse  = $this->exchangeRateProvider->getSupportedCurrencies();
+                if(isset($supportedResponse['status']) && $supportedResponse['status'] === true){
+                    $currencies = $supportedResponse['data'];
+                }
+            }
 
-            if(isset( $get_supported_countries) && isset( $get_supported_countries['status']) &&  $get_supported_countries['status'] == true){
+            if(!empty($currencies)){
                 $in['access_key']           = $provider->value->access_key??"";
                 $in['base_url']             = $provider->value->base_url??"";
-                $in['supported_currencies'] = array_keys($get_supported_countries['data']);
+                $in['supported_currencies'] = array_keys($currencies);
                 $provider->update([
                     'value' => $in
                 ]);
@@ -80,9 +90,16 @@ class LiveExchangeRateApiController extends Controller
             $data['multiply_by']    =  $validated['multiply_by'];
 
             if($provider->slug == GlobalConst::CURRENCY_LAYER){
-                $get_supported_countries  = (new CurrencyLayer())->apiCurrencyList();
-                if(isset( $get_supported_countries) && isset( $get_supported_countries['status']) &&  $get_supported_countries['status'] == true){
-                    $data['value']['supported_currencies'] = array_keys($get_supported_countries['data'])??[];
+                $currencies = Cache::get(config('exchange.cache.supported_currencies_key', 'exchange:rates:currency-layer:supported-currencies'));
+                if (!$currencies) {
+                    $supportedResponse  = $this->exchangeRateProvider->getSupportedCurrencies();
+                    if(isset($supportedResponse['status']) && $supportedResponse['status'] === true){
+                        $currencies = $supportedResponse['data'];
+                    }
+                }
+
+                if(!empty($currencies)){
+                    $data['value']['supported_currencies'] = array_keys($currencies)??[];
                 }
             }
             $provider->fill($data)->save();
@@ -192,12 +209,26 @@ class LiveExchangeRateApiController extends Controller
     public function sendRequestApi(Request $request){
 
         try{
-            $api_rates = (new CurrencyLayer())->getLiveExchangeRates();
+            $api_rates = Cache::get(config('exchange.cache.latest_rates_key', 'exchange:rates:latest'));
+            if (!$api_rates) {
+                $response = $this->exchangeRateProvider->getLiveExchangeRates();
 
-            if(isset($api_rates) && $api_rates['status'] == false){
-                return back()->with(['error' => [$api_rates['message'] ??__("Something went wrong! Please try again.")]]);
+                if(isset($response) && $response['status'] == false){
+                    return back()->with(['error' => [$response['message'] ??__("Something went wrong! Please try again.")]]);
+                }
+
+                $api_rates =  $response['data'];
+
+                Cache::put(
+                    config('exchange.cache.latest_rates_key', 'exchange:rates:latest'),
+                    $api_rates,
+                    now()->addSeconds((int) config('exchange.cache.ttl', 3600))
+                );
             }
-            $api_rates =  $api_rates['data'];
+
+            if (empty($api_rates)) {
+                return back()->with(['error' => [__("Exchange rate data is unavailable at the moment.")]]);
+            }
             $provider = LiveExchangeRateApiSetting::where('slug',GlobalConst::CURRENCY_LAYER)->first();
 
             // For Setup Currency Rate Update
