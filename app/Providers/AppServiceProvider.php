@@ -28,12 +28,8 @@ class AppServiceProvider extends ServiceProvider
     */
     public function register()
     {
-        $this->app->singleton(FeatureToggle::class, function ($app) {
-            return new FeatureToggle();
-        });
-
-        $this->app->singleton(CanaryReleaseManager::class, function ($app) {
-            return new CanaryReleaseManager($app->make(FeatureToggle::class));
+        $this->app->singleton(\App\Services\FeatureToggle::class, function ($app) {
+            return new \App\Services\FeatureToggle();
         });
     }
 

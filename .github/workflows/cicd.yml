@@ -1,0 +1,108 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      rollback_version:
+        description: "Tag or commit to rollback to"
+        required: false
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, intl, bcmath
+          coverage: none
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+      - name: Copy environment file
+        run: cp .env.example .env
+      - name: Generate application key
+        run: php artisan key:generate
+      - name: Run tests
+        run: php artisan test --testsuite=Feature
+      - name: Build assets
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build --if-present
+
+  deploy_canary:
+    name: Canary Release
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Prepare deployment
+        run: |
+          echo "Deploying canary release to ${CANARY_ENVIRONMENT}"
+          echo "Release tag: ${GITHUB_SHA}"
+        env:
+          CANARY_ENVIRONMENT: ${{ secrets.CANARY_ENVIRONMENT }}
+      - name: Trigger canary deployment
+        run: |
+          ./deploy/scripts/deploy.sh --environment=canary --sha=${GITHUB_SHA}
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        continue-on-error: true
+      - name: Verify canary health
+        run: |
+          ./deploy/scripts/verify.sh --environment=canary
+
+  promote_or_hold:
+    name: Promote Canary
+    needs: deploy_canary
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Manual approval
+        uses: trstringer/manual-approval@v1
+        with:
+          approvers: ${{ secrets.CANARY_APPROVERS }}
+          issue-title: "Promote canary to production"
+          issue-body: |
+            Canary release `${{ github.sha }}` is ready for promotion.
+            Approve this step to continue deployment.
+      - name: Promote canary to production
+        run: |
+          ./deploy/scripts/deploy.sh --environment=production --sha=${GITHUB_SHA}
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+
+  rollback:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.rollback_version != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.rollback_version }}
+      - name: Execute rollback
+        run: |
+          ./deploy/scripts/deploy.sh --environment=production --sha=${ROLLBACK_SHA}
+        env:
+          ROLLBACK_SHA: ${{ github.event.inputs.rollback_version }}
+      - name: Notify rollback
+        run: |
+          echo "Rolled back production to ${ROLLBACK_SHA}"
+        env:
+          ROLLBACK_SHA: ${{ github.event.inputs.rollback_version }}
