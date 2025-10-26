@@ -13,12 +13,12 @@ class DeviceFingerprintService
         [$fingerprint, $metadata] = $this->fingerprintFromRequest($request);
 
         $record = DeviceFingerprint::firstOrNew([
+            'authenticatable_type' => $authenticatable::class,
+            'authenticatable_id' => $authenticatable->getKey(),
             'fingerprint' => $fingerprint,
         ]);
 
         $record->fill([
-            'authenticatable_type' => $authenticatable::class,
-            'authenticatable_id' => $authenticatable->getKey(),
             'device_name' => $metadata['device_name'] ?? null,
             'metadata' => $metadata,
             'last_seen_at' => now(),

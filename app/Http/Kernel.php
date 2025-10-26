@@ -35,6 +35,7 @@ class Kernel extends HttpKernel
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \App\Http\Middleware\SessionHardening::class,
+            \App\Http\Middleware\SensitiveSessionBinding::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
@@ -46,6 +47,7 @@ class Kernel extends HttpKernel
         'api' => [
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
+            \App\Http\Middleware\Api\EnsurePartnerSecurity::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\Api\HandleLocalization::class
         ],
@@ -91,6 +93,8 @@ class Kernel extends HttpKernel
         'merchant.google.two.factor'    => \App\Http\Middleware\Merchant\GoogleTwoFactor::class,
         'merchant.google.two.factor.api'    => \App\Http\Middleware\Merchant\GoogleTwoFactorApi::class,
         'agent.google.two.factor'    => \App\Http\Middleware\Agent\GoogleTwoFactor::class,
+        'partner.security' => \App\Http\Middleware\Api\EnsurePartnerSecurity::class,
+        'sensitive.session' => \App\Http\Middleware\SensitiveSessionBinding::class,
         'agent.google.two.factor.api'    => \App\Http\Middleware\Agent\GoogleTwoFactorApi::class,
         'api.version' => \App\Http\Middleware\ApiVersionResolver::class,
         'auth.api' => \App\Http\Middleware\ApiAuthenticator::class,

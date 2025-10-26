@@ -32,6 +32,17 @@
                         <h5 class="title">{{ __($page_title) }}</h5>
                     </div>
                     <div class="dash-payment-body">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                @include('user.components.localized-wizard-hint', [
+                                    'context' => 'money-out',
+                                    'heading' => __('messaging.labels.localized_guidance'),
+                                    'description' => __('messaging.labels.instructions_heading'),
+                                    'defaultLocale' => app()->getLocale(),
+                                    'dusk' => 'money-out-localized-wizard',
+                                ])
+                            </div>
+                        </div>
                         <form class="card-form" action="{{ setRoute('user.money.out.insert') }}" method="POST">
                             @csrf
                             <div class="row">
@@ -173,6 +184,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="mt-4">
+                            @include('user.components.scenario-explorer', [
+                                'scenario' => 'bankAuth',
+                                'heading' => __('messaging.labels.bank_flow_heading'),
+                                'defaultLocale' => app()->getLocale(),
+                                'dusk' => 'bank-auth-scenario',
+                            ])
+                        </div>
                     </div>
                 </div>
             </div>
@@ -196,185 +215,155 @@
 
 @push('script')
     <script>
-         var defualCurrency = "{{ get_default_currency_code() }}";
-         var defualCurrencyRate = "{{ get_default_currency_rate() }}";
+        const baseCurrency = "{{ get_default_currency_code() }}";
+        const quoteUrl = "{{ setRoute('user.money.out.quote') }}";
+        let quoteRequest = null;
+        let quoteTimer = null;
 
-        $('select[name=gateway]').on('change',function(){
-            getExchangeRate();
-            isCrypto();
-            getLimit();
-            getFees();
-            activeItems();
-        });
-        $(document).ready(function(){
-            getExchangeRate();
-            isCrypto();
-            getLimit();
-            getFees();
-            activeItems();
-        });
-        $("input[name=amount]").keyup(function(){
-             getFees();
-             activeItems();
-        });
-        function isCrypto(){
-            var pricison = 0;
-            var crypto = acceptVar().selectedVal.data('crypto');
-            if(crypto == 1){
-                 pricison = 8;
-            }else{
-                 pricison = 2;
-            }
-            return pricison;
-        }
-        function getExchangeRate() {
-            if(acceptVar().selectedVal.val() === "null"){
-                return false;
-            }
-            var pricison = isCrypto();
-            var currencyCode = acceptVar().currencyCode;
-            var currencyRate = acceptVar().currencyRate;
-            var currencyMinAmount = acceptVar().currencyMinAmount;
-            var currencyMaxAmount = acceptVar().currencyMaxAmount;
-            $('.rate-show').html("1 " + defualCurrency + " = " + parseFloat(currencyRate).toFixed(pricison) + " " + currencyCode);
-        }
-        function getLimit() {
-            var pricison = isCrypto();
-            var sender_currency = acceptVar().currencyCode;
-            var sender_currency_rate = acceptVar().currencyRate;
-            var min_limit = acceptVar().currencyMinAmount;
-            var max_limit =acceptVar().currencyMaxAmount;
-            if($.isNumeric(min_limit) || $.isNumeric(max_limit)) {
-                var min_limit_calc = parseFloat(min_limit/sender_currency_rate).toFixed(pricison);
-                var max_limit_clac = parseFloat(max_limit/sender_currency_rate).toFixed(pricison);
-                $('.limit-show').html("{{ __('limit') }} " + min_limit_calc + " " + defualCurrency + " - " + max_limit_clac + " " + defualCurrency);
-                return {
-                    minLimit:min_limit_calc,
-                    maxLimit:max_limit_clac,
-                };
-            }else {
-                $('.limit-show').html("--");
-                return {
-                    minLimit:0,
-                    maxLimit:0,
-                };
-            }
-        }
-        function acceptVar() {
-            var selectedVal = $("select[name=gateway] :selected");
-            var currencyCode = $("select[name=gateway] :selected").attr("data-currency");
-            var currencyRate = $("select[name=gateway] :selected").attr("data-rate");
-            var currencyMinAmount = $("select[name=gateway] :selected").attr("data-min_amount");
-            var currencyMaxAmount = $("select[name=gateway] :selected").attr("data-max_amount");
-            var currencyFixedCharge = $("select[name=gateway] :selected").attr("data-fixed_charge");
-            var currencyPercentCharge = $("select[name=gateway] :selected").attr("data-percent_charge");
-
-            // var sender_select = $("input[name=from_wallet_id] :selected");
-
+        function selectedGatewayMeta() {
+            const selected = $("select[name=gateway] :selected");
             return {
-                currencyCode:currencyCode,
-                currencyRate:currencyRate,
-                currencyMinAmount:currencyMinAmount,
-                currencyMaxAmount:currencyMaxAmount,
-                currencyFixedCharge:currencyFixedCharge,
-                currencyPercentCharge:currencyPercentCharge,
-                selectedVal:selectedVal,
-
+                rate: parseFloat(selected.data('rate')) || 0,
+                min: parseFloat(selected.data('min_amount')) || 0,
+                max: parseFloat(selected.data('max_amount')) || 0,
+                currency: selected.data('currency') || baseCurrency,
+                isValid: selected.length && selected.val() !== 'null',
             };
         }
-        function feesCalculation() {
-            var pricison = isCrypto();
-            var sender_currency = acceptVar().currencyCode;
-            var sender_currency_rate = acceptVar().currencyRate;
-            var sender_amount = $("input[name=amount]").val();
-            sender_amount == "" ? (sender_amount = 0) : (sender_amount = sender_amount);
-            var conversion_amount = parseFloat( sender_amount) *  parseFloat(sender_currency_rate)
 
-            var fixed_charge = acceptVar().currencyFixedCharge;
-            var percent_charge = acceptVar().currencyPercentCharge;
-            if ($.isNumeric(percent_charge) && $.isNumeric(fixed_charge) && $.isNumeric(conversion_amount)) {
-                // Process Calculation
-                var fixed_charge_calc = parseFloat(fixed_charge);
-                var percent_charge_calc = (parseFloat(conversion_amount) / 100) * parseFloat(percent_charge);
-                var total_charge = parseFloat(fixed_charge_calc) + parseFloat(percent_charge_calc);
-                total_charge = parseFloat(total_charge).toFixed(pricison);
-                // return total_charge;
-                return {
-                    total: total_charge,
-                    fixed: fixed_charge_calc,
-                    percent: percent_charge,
-                };
+        function setFallbackPreview() {
+            const meta = selectedGatewayMeta();
+            if (!meta.isValid) {
+                resetPreview();
+                return;
+            }
+            if (meta.rate > 0 && (meta.min > 0 || meta.max > 0)) {
+                const minBase = meta.min > 0 ? (meta.min / meta.rate).toFixed(2) : null;
+                const maxBase = meta.max > 0 ? (meta.max / meta.rate).toFixed(2) : null;
+                if (minBase && maxBase) {
+                    $('.limit-show').html(`{{ __('limit') }} ${minBase} ${baseCurrency} - ${maxBase} ${baseCurrency}`);
+                }
+            }
+        }
+
+        function resetPreview() {
+            $('.rate-show').html('--');
+            $('.request-amount').text(`0 ${baseCurrency}`);
+            $('.conversionAmount').text('--');
+            $('.fees').text('--');
+            $('.will-get').text('--');
+            $('.total-pay').text(`0 ${baseCurrency}`);
+            $('.fees-show').html('--');
+            $('.limit-show').html('--');
+        }
+
+        function updatePreview(quote) {
+            if (!quote || !quote.data) {
+                resetPreview();
+                return;
+            }
+
+            const data = quote.data;
+            const formatted = quote.formatted || {};
+
+            $('.rate-show').html(`1 ${baseCurrency} = ${formatted.exchange_rate ?? data.exchange_rate} ${data.provider_currency}`);
+            $('.request-amount').text(`${Number(data.requested_amount).toFixed(2)} ${baseCurrency}`);
+            $('.conversionAmount').text(`${formatted.provider_amount ?? data.provider_amount} ${data.provider_currency}`);
+            $('.fees').text(`${formatted.fee_amount ?? data.fee.amount} ${data.provider_currency}`);
+            $('.will-get').text(`${formatted.net_provider ?? data.net_amount_provider} ${data.provider_currency}`);
+            $('.total-pay').text(`${Number(data.requested_amount).toFixed(2)} ${baseCurrency}`);
+
+            if (formatted.limits && formatted.limits.min_base && formatted.limits.max_base) {
+                $('.limit-show').html(`{{ __('limit') }} ${formatted.limits.min_base} ${baseCurrency} - ${formatted.limits.max_base} ${baseCurrency}`);
             } else {
-                // return "--";
-                return false;
+                setFallbackPreview();
             }
+
+            const feeParts = [];
+            if (data.pricing_rule_id) {
+                feeParts.push(`{{ __('Rule') }} #${data.pricing_rule_id}`);
+            }
+            if (data.pricing_tier_id) {
+                feeParts.push(`{{ __('Tier') }} #${data.pricing_tier_id}`);
+            }
+            if (data.fee.type) {
+                feeParts.push(data.fee.type);
+            }
+
+            const feeLabel = data.fee.source === 'gateway_default'
+                ? `{{ __('Gateway fee') }}`
+                : `{{ __('Fee engine') }}`;
+
+            const feeDescription = feeParts.length ? ` (${feeParts.join(' · ')})` : '';
+            $('.fees-show').html(`${feeLabel}: ${formatted.fee_amount ?? data.fee.amount} ${data.provider_currency}${feeDescription}`);
         }
-        function getFees() {
-            var pricison = isCrypto();
-            var sender_currency = acceptVar().currencyCode;
-            var percent = acceptVar().currencyPercentCharge;
-            var charges = feesCalculation();
-            if (charges == false) {
-                return false;
-            }
-            $(".fees-show").html("{{ __('charge') }}: " + parseFloat(charges.fixed).toFixed(pricison) + " " + sender_currency + " + " + parseFloat(charges.percent).toFixed(pricison) + "%");
+
+        function showQuoteError(message) {
+            $('.fees-show').html(`<span class="text--danger">${message}</span>`);
         }
-        function activeItems(){
-            var selectedVal = acceptVar().selectedVal.val();
-            if(selectedVal === undefined || selectedVal === '' || selectedVal === null){
-                return false;
-            }else{
-                return getPreview();
+
+        function requestQuote() {
+            const meta = selectedGatewayMeta();
+            const amount = parseFloat($("input[name=amount]").val());
+
+            if (!meta.isValid || !amount || amount <= 0) {
+                resetPreview();
+                setFallbackPreview();
+                return;
             }
+
+            if (quoteRequest) {
+                quoteRequest.abort();
+            }
+
+            quoteRequest = $.ajax({
+                method: 'POST',
+                url: quoteUrl,
+                data: {
+                    gateway: $("select[name=gateway]").val(),
+                    amount: amount,
+                    _token: '{{ csrf_token() }}'
+                },
+                beforeSend() {
+                    $('.fees-show').html('{{ __('Calculating fees...') }}');
+                },
+                success(response) {
+                    updatePreview(response);
+                },
+                error(xhr) {
+                    resetPreview();
+                    setFallbackPreview();
+                    const message = xhr?.responseJSON?.message ?? '{{ __('Unable to fetch quote at this time.') }}';
+                    showQuoteError(message);
+                },
+                complete() {
+                    quoteRequest = null;
+                }
+            });
         }
-        function getPreview() {
-            var pricison = isCrypto();
-            var senderAmount = $("input[name=amount]").val();
-            var sender_currency = acceptVar().currencyCode;
 
-            if(acceptVar().selectedVal.val() === "null"){
-                return false;
+        function scheduleQuote() {
+            if (quoteTimer) {
+                clearTimeout(quoteTimer);
             }
-            var sender_currency_rate = acceptVar().currencyRate;
-            // var receiver_currency = acceptVar().rCurrency;
-            (senderAmount == "" || isNaN(senderAmount)) ? senderAmount = 0 : senderAmount = senderAmount;
-
-            // Sending Amount
-            $('.request-amount').text(senderAmount + " " + defualCurrency);
-
-            // Fees
-            var charges = feesCalculation();
-            var total_charge = 0;
-            if(senderAmount == 0){
-                total_charge = 0;
-            }else{
-                total_charge = charges.total;
-            }
-
-            $('.fees').text(total_charge + " " + sender_currency);
-
-            var conversionAmount = senderAmount * sender_currency_rate;
-            $('.conversionAmount').text(parseFloat(conversionAmount).toFixed(pricison) + " " + sender_currency);
-            // willget
-            var will_get = parseFloat(senderAmount) * parseFloat(sender_currency_rate)
-            var will_get_total = 0;
-            if(senderAmount == 0){
-                    will_get_total = 0;
-            }else{
-                    will_get_total =  parseFloat(will_get) - parseFloat(charges.total);
-            }
-            $('.will-get').text(parseFloat(will_get_total).toFixed(pricison) + " " + sender_currency);
-
-            // total payable
-            var totalPay = parseFloat(senderAmount)
-            var pay_in_total = 0;
-            if(senderAmount == 0){
-                    pay_in_total = 0;
-            }else{
-                //  pay_in_total =  parseFloat(totalPay) + parseFloat(charges.total);
-                    pay_in_total =  parseFloat(totalPay);
-            }
-            $('.total-pay').text(parseFloat(pay_in_total).toFixed(pricison) + " " + defualCurrency);
+            quoteTimer = setTimeout(requestQuote, 300);
         }
+
+        $('select[name=gateway]').on('change', function(){
+            resetPreview();
+            setFallbackPreview();
+            scheduleQuote();
+        });
+
+        $(document).ready(function(){
+            resetPreview();
+            setFallbackPreview();
+            scheduleQuote();
+        });
+
+        $("input[name=amount]").on('input', function(){
+            scheduleQuote();
+        });
     </script>
 @endpush
+

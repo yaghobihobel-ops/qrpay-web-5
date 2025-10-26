@@ -10,10 +10,13 @@ use App\Models\Merchants\GatewaySetting;
 use App\Models\Merchants\MerchantLoginLog;
 use App\Models\Merchants\MerchantWallet;
 use App\Models\Merchants\SandboxWallet;
+use App\Traits\Security\LogsSecurityEvents;
 use Exception;
 use Jenssegers\Agent\Agent;
 
 trait LoggedInUsers {
+
+    use LogsSecurityEvents;
 
     protected function refreshUserWallets($user) {
         $user_wallets = $user->wallets->pluck("currency_id")->toArray();
@@ -63,8 +66,22 @@ trait LoggedInUsers {
 
         try{
             MerchantLoginLog::create($data);
+            $this->logSecurityInfo('merchant_login_success', [
+                'merchant_id' => $user->id,
+                'fingerprint_id' => $fingerprint?->id,
+                'ip' => $client_ip,
+                'city' => $data['city'],
+                'country' => $data['country'],
+                'browser' => $data['browser'],
+                'os' => $data['os'],
+                'context' => 'merchant_web',
+            ]);
         }catch(Exception $e) {
-            // return false;
+            $this->logSecurityError('merchant_login_log_failed', [
+                'merchant_id' => $user->id,
+                'ip' => $client_ip,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
     protected function refreshSandboxWallets($user) {

@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\DispatchAnalyticsEvent::class,
+        \App\Console\Commands\RotateApiKeys::class,
     ];
 
     /**
@@ -31,6 +32,11 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('currency:update')->daily();
         $schedule->command('audit:enforce-retention')->dailyAt('01:00');
+
+        $schedule->command('keys:rotate')
+            ->cron(config('key_management.rotation.cron', '0 */6 * * *'))
+            ->withoutOverlapping()
+            ->onFailure(fn () => \Log::warning('Key rotation command failed'));
     }
 
     /**
