@@ -414,6 +414,9 @@
                     </tbody>
                 </table>
             </div>
+            <div class="mt-3">
+                {{ get_paginate($data['transactions'] ?? []) }}
+            </div>
 
         </div>
     </div>
