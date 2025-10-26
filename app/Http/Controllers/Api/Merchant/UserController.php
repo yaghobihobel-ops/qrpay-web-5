@@ -13,7 +13,6 @@ use App\Models\Merchants\MerchantNotification;
 use App\Models\Merchants\MerchantWallet;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Password;
 use App\Providers\Admin\BasicSettingsProvider;
 use App\Traits\AdminNotifications\AuthNotifications;
 
@@ -239,10 +238,7 @@ class UserController extends Controller
     public function passwordUpdate(Request $request) {
 
         $basic_settings = BasicSettingsProvider::get();
-        $password_rule = "required|string|min:6|confirmed";
-        if($basic_settings->merchant_secure_password) {
-            $password_rule = ["required",Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised(),"confirmed"];
-        }
+        $password_rule = security_password_rules();
         $validator = Validator::make($request->all(), [
             'current_password'      => "required|string",
             'password'              => $password_rule,

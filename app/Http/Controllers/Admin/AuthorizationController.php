@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\Security\DeviceFingerprintService;
 use Illuminate\Http\Request;
 
 class AuthorizationController extends Controller
@@ -31,6 +32,7 @@ class AuthorizationController extends Controller
             $user->update([
                 'two_factor_verified'   => true,
             ]);
+            app(DeviceFingerprintService::class)->trustCurrent($request, $user);
             return redirect()->intended(route('admin.dashboard'));
         }
 
