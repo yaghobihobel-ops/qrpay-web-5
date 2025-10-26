@@ -1,0 +1,18 @@
+<?php
+
+namespace App\Enums;
+
+enum ApiErrorCode: int
+{
+    case UNKNOWN = 1000;
+    case VALIDATION_ERROR = 1001;
+    case AUTHENTICATION_ERROR = 1401;
+    case AUTHORIZATION_ERROR = 1403;
+    case NOT_FOUND = 1404;
+    case ACCESS_TOKEN_MISSING = 1500;
+    case ACCESS_TOKEN_INVALID = 1501;
+    case ACCESS_TOKEN_EXPIRED = 1502;
+    case MERCHANT_NOT_FOUND = 1503;
+    case INVALID_CREDENTIALS = 1504;
+    case PAYMENT_CREATION_FAILED = 1505;
+}

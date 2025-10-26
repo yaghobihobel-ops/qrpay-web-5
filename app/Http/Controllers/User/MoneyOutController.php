@@ -23,6 +23,11 @@ use App\Models\Admin\BasicSettings;
 use App\Notifications\Admin\ActivityNotification;
 use App\Notifications\User\Withdraw\WithdrawMail;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Pricing\CurrencyRateService;
+use App\Services\Pricing\Exceptions\CouldNotResolveExchangeRateException;
+use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
+use App\Services\Pricing\FeeEngine;
+use App\Services\Pricing\FeeQuote;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
@@ -49,14 +54,16 @@ class MoneyOutController extends Controller
         return view('user.sections.money-out.index',compact('page_title','payment_gateways','transactions','user_wallets'));
     }
 
-   public function paymentInsert(Request $request){
+   public function paymentInsert(Request $request, FeeEngine $feeEngine, CurrencyRateService $currencyRateService){
         $request->validate([
             'amount' => 'required|numeric|gt:0',
             'gateway' => 'required'
         ]);
+
         $user = auth()->user();
         $userWallet = UserWallet::where('user_id',$user->id)->where('status',1)->first();
-        $gate =PaymentGatewayCurrency::whereHas('gateway', function ($gateway) {
+
+        $gate = PaymentGatewayCurrency::with('gateway')->whereHas('gateway', function ($gateway) {
             $gateway->where('slug', PaymentGatewayConst::money_out_slug());
             $gateway->where('status', 1);
         })->where('alias',$request->gateway)->first();
@@ -64,58 +71,95 @@ class MoneyOutController extends Controller
         if (!$gate) {
             return back()->with(['error' => [__("Gateway is not available right now! Please contact with system administration")]]);
         }
+
         $precision = get_precision($gate->gateway);
         $baseCurrency = Currency::default();
+
         if (!$baseCurrency) {
             return back()->with(['error' => [__("Default currency not found")]]);
         }
-        $amount = $request->amount;
 
-        $min_limit = get_amount( $gate->min_limit / $gate->rate,null,$precision);
-        $max_limit =  get_amount($gate->max_limit / $gate->rate,null,$precision);
+        if(!$userWallet){
+            return back()->with(['error' => [__("No active wallet found")]]);
+        }
 
-        if($amount < $min_limit || $amount > $max_limit) {
+        $amount = (float) $request->amount;
+
+        try {
+            $preview = $this->buildFeePreview(
+                $user,
+                $gate,
+                $amount,
+                $feeEngine,
+                $currencyRateService,
+                [
+                    'experiment' => $request->input('pricing_experiment'),
+                    'variant' => $request->input('pricing_variant'),
+                ],
+                $baseCurrency
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+            return back()->with(['error' => [__('Unable to calculate fees at this moment. Please try again later.')]]);
+        }
+
+        $effectiveRate = $preview['exchange_rate'] > 0 ? $preview['exchange_rate'] : max((float) $gate->rate, 0.00000001);
+
+        $min_limit = $gate->min_limit ? get_amount($gate->min_limit / $effectiveRate,null,$precision) : 0;
+        $max_limit = $gate->max_limit ? get_amount($gate->max_limit / $effectiveRate,null,$precision) : 0;
+
+        if(($min_limit && $amount < $min_limit) || ($max_limit && $max_limit > 0 && $amount > $max_limit)) {
             return back()->with(['error' => [__("Please follow the transaction limit")]]);
         }
-        //gateway charge
-        $fixedCharge        = get_amount($gate->fixed_charge,null,$precision);
-        $percent_charge     = get_amount(((($request->amount * $gate->rate)/ 100) * $gate->percent_charge),null,$precision);
-        $charge             = get_amount($fixedCharge + $percent_charge,null,$precision);
-        $conversion_amount  = get_amount($request->amount * $gate->rate,null,$precision);
-        $will_get           = get_amount($conversion_amount -  $charge,null,$precision);
 
-        //base_cur_charge
-        $baseFixedCharge    = get_amount($gate->fixed_charge *  $baseCurrency->rate,null,$precision);
-        $basePercent_charge = get_amount(($request->amount / 100) * $gate->percent_charge,null,$precision);
-        $base_total_charge  = get_amount($baseFixedCharge + $basePercent_charge,null,$precision);
-        // $reduceAbleTotal = $amount + $base_total_charge;
         $reduceAbleTotal    = get_amount($amount,null,$precision);
-        if( $reduceAbleTotal > $userWallet->balance){
+
+        if( $amount > $userWallet->balance){
             return back()->with(['error' => [__('Sorry, insufficient balance')]]);
         }
+
+        $percentComponent = 0;
+        $fixedComponent = 0;
+        $feeType = strtolower((string) $preview['pricing_fee_type']);
+
+        if (in_array($feeType, ['percentage', 'percent', 'bps'], true)) {
+            $percentComponent = $preview['fee_provider'];
+        } else {
+            $fixedComponent = $preview['fee_provider'];
+        }
+
         $data['user_id']= $user->id;
         $data['gateway_name']= $gate->gateway->name;
         $data['gateway_type']= $gate->gateway->type;
         $data['wallet_id']= $userWallet->id;
         $data['trx_id']= 'MO'.getTrxNum();
         $data['amount'] =  get_amount($amount,null,$precision);
-        $data['base_cur_charge'] = get_amount($base_total_charge,null,$precision);
+        $data['base_cur_charge'] = get_amount($preview['fee_base'],null,$precision);
         $data['base_cur_rate'] = get_amount($baseCurrency->rate,null,$precision);
         $data['gateway_id'] = $gate->gateway->id;
         $data['gateway_currency_id'] = $gate->id;
         $data['gateway_currency'] = strtoupper($gate->currency_code);
-        $data['gateway_percent_charge'] = get_amount($percent_charge,null,$precision);
-        $data['gateway_fixed_charge'] = get_amount($fixedCharge,null,$precision);
-        $data['gateway_charge'] = get_amount($charge,null,$precision);
-        $data['gateway_rate'] = get_amount($gate->rate,null,$precision);
-        $data['conversion_amount'] = get_amount($conversion_amount,null,$precision);
-        $data['will_get'] = get_amount($will_get,null,$precision);
+        $data['gateway_percent_charge'] = get_amount($percentComponent,null,$precision);
+        $data['gateway_fixed_charge'] = get_amount($fixedComponent,null,$precision);
+        $data['gateway_charge'] = get_amount($preview['fee_provider'],null,$precision);
+        $data['gateway_rate'] = get_amount($preview['exchange_rate'],null,$precision);
+        $data['conversion_amount'] = get_amount($preview['provider_amount'],null,$precision);
+        $data['provider_currency_amount'] = get_amount($preview['provider_amount'],null,$precision);
+        $data['will_get'] = get_amount($preview['net_provider'],null,$precision);
         $data['payable'] = get_amount($reduceAbleTotal,null,$precision);
+        $data['net_amount_base'] = get_amount($preview['net_base'],null,$precision);
+        $data['pricing_rule_id'] = $preview['pricing_rule_id'];
+        $data['pricing_tier_id'] = $preview['pricing_tier_id'];
+        $data['pricing_fee_type'] = $preview['pricing_fee_type'];
+        $data['fee_source'] = $preview['fee_source'];
+        $data['rate_source'] = $preview['rate_source'];
+        $data['fee_rate_value'] = $preview['fee_quote']->getMeta('rate_value');
+        $data['fee_quote'] = $preview['fee_quote']->toArray();
 
         session()->put('moneyoutData', $data);
         return redirect()->route('user.money.out.preview');
    }
-   public function preview(){
+    public function preview(){
     $moneyOutData = (object)session()->get('moneyoutData');
     $moneyOutDataExist = session()->get('moneyoutData');
     if($moneyOutDataExist  == null){
@@ -153,6 +197,197 @@ class MoneyOutController extends Controller
 
 
    }
+
+    protected function buildFeePreview(
+        $user,
+        PaymentGatewayCurrency $gatewayCurrency,
+        float $baseAmount,
+        FeeEngine $feeEngine,
+        CurrencyRateService $currencyRateService,
+        array $context = [],
+        ?Currency $baseCurrency = null
+    ): array {
+        $baseCurrency ??= Currency::default();
+
+        if (! $baseCurrency) {
+            throw new \RuntimeException('Default currency not configured.');
+        }
+
+        $baseCurrencyCode = strtoupper($baseCurrency->code);
+        $providerCurrencyCode = strtoupper($gatewayCurrency->currency_code);
+
+        $rateSource = 'real_time';
+
+        try {
+            $exchangeRate = $currencyRateService->getRate($baseCurrencyCode, $providerCurrencyCode);
+            $providerAmount = $baseAmount * $exchangeRate;
+        } catch (CouldNotResolveExchangeRateException $exception) {
+            $exchangeRate = (float) $gatewayCurrency->rate;
+            $providerAmount = $baseAmount * $exchangeRate;
+            $rateSource = 'fallback_gateway';
+        }
+
+        $experiment = $context['experiment'] ?? null;
+        $variant = $context['variant'] ?? null;
+
+        $providerIdentifier = $gatewayCurrency->gateway->alias ?? $gatewayCurrency->gateway->slug ?? $gatewayCurrency->gateway->name;
+
+        try {
+            $feeQuote = $feeEngine->quote(
+                $providerCurrencyCode,
+                $providerIdentifier,
+                'withdraw',
+                method_exists($user, 'getFeeLevel') ? $user->getFeeLevel() : 'standard',
+                $providerAmount,
+                [
+                    'experiment' => $experiment,
+                    'variant' => $variant,
+                    'metadata' => [
+                        'gateway_currency_id' => $gatewayCurrency->id,
+                        'rate_source' => $rateSource,
+                    ],
+                ]
+            );
+            $feeSource = $feeQuote->getMeta('calculation_source', 'rule');
+        } catch (PricingRuleNotFoundException $exception) {
+            $fallbackFee = (float) $gatewayCurrency->fixed_charge + (($providerAmount / 100) * (float) $gatewayCurrency->percent_charge);
+            $feeQuote = new FeeQuote(
+                amount: $providerAmount,
+                transactionCurrency: $providerCurrencyCode,
+                feeAmount: $fallbackFee,
+                feeCurrency: $providerCurrencyCode,
+                exchangeRate: 1.0,
+                feeType: 'gateway_default',
+                ruleId: null,
+                tierId: null,
+                meta: [
+                    'calculation_source' => 'gateway_default',
+                    'gateway_currency_id' => $gatewayCurrency->id,
+                    'rate_source' => $rateSource,
+                    'rate_value' => null,
+                ]
+            );
+            $feeSource = 'gateway_default';
+        }
+
+        $feeProvider = $feeQuote->getConvertedFee();
+        $feeBase = $exchangeRate > 0 ? $feeProvider / $exchangeRate : 0.0;
+        $netProvider = $feeQuote->getNetAmount();
+        $netBase = $exchangeRate > 0 ? $netProvider / $exchangeRate : 0.0;
+
+        return [
+            'base_currency' => $baseCurrencyCode,
+            'base_amount' => $baseAmount,
+            'provider_currency' => $providerCurrencyCode,
+            'exchange_rate' => $exchangeRate,
+            'rate_source' => $rateSource,
+            'provider_amount' => $providerAmount,
+            'fee_quote' => $feeQuote,
+            'fee_provider' => $feeProvider,
+            'fee_base' => $feeBase,
+            'net_provider' => $netProvider,
+            'net_base' => $netBase,
+            'pricing_rule_id' => $feeQuote->getRuleId(),
+            'pricing_tier_id' => $feeQuote->getTierId(),
+            'pricing_fee_type' => $feeQuote->getFeeType(),
+            'fee_source' => $feeSource,
+            'experiment' => $experiment,
+            'variant' => $variant,
+        ];
+    }
+
+    public function quote(Request $request, FeeEngine $feeEngine, CurrencyRateService $currencyRateService)
+    {
+        $request->validate([
+            'amount' => 'required|numeric|gt:0',
+            'gateway' => 'required',
+        ]);
+
+        $user = $request->user();
+
+        $gateway = PaymentGatewayCurrency::with('gateway')->whereHas('gateway', function ($query) {
+            $query->where('slug', PaymentGatewayConst::money_out_slug());
+            $query->where('status', 1);
+        })->where('alias', $request->gateway)->first();
+
+        if (! $gateway) {
+            return response()->json([
+                'message' => __("Gateway is not available right now."),
+            ], 404);
+        }
+
+        $amount = (float) $request->amount;
+
+        try {
+            $preview = $this->buildFeePreview(
+                $user,
+                $gateway,
+                $amount,
+                $feeEngine,
+                $currencyRateService,
+                [
+                    'experiment' => $request->input('experiment'),
+                    'variant' => $request->input('variant'),
+                ]
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => __('Unable to calculate fees at this moment.'),
+            ], 422);
+        }
+
+        $precision = get_precision($gateway->gateway);
+        $effectiveRate = $preview['exchange_rate'] > 0 ? $preview['exchange_rate'] : max((float) $gateway->rate, 0.00000001);
+
+        $minBase = $gateway->min_limit ? $gateway->min_limit / $effectiveRate : null;
+        $maxBase = $gateway->max_limit ? $gateway->max_limit / $effectiveRate : null;
+
+        return response()->json([
+            'data' => [
+                'requested_amount' => $amount,
+                'base_currency' => $preview['base_currency'],
+                'exchange_rate' => $preview['exchange_rate'],
+                'rate_source' => $preview['rate_source'],
+                'provider_currency' => $preview['provider_currency'],
+                'provider_amount' => $preview['provider_amount'],
+                'fee' => [
+                    'amount' => $preview['fee_provider'],
+                    'currency' => $preview['provider_currency'],
+                    'type' => $preview['pricing_fee_type'],
+                    'source' => $preview['fee_source'],
+                    'rate_value' => $preview['fee_quote']->getMeta('rate_value'),
+                ],
+                'net_amount_provider' => $preview['net_provider'],
+                'net_amount_base' => $preview['net_base'],
+                'pricing_rule_id' => $preview['pricing_rule_id'],
+                'pricing_tier_id' => $preview['pricing_tier_id'],
+                'experiment' => $preview['experiment'],
+                'variant' => $preview['variant'],
+                'fee_quote' => $preview['fee_quote']->toArray(),
+                'limits' => [
+                    'min_base' => $minBase,
+                    'max_base' => $maxBase,
+                    'min_provider' => $gateway->min_limit,
+                    'max_provider' => $gateway->max_limit,
+                ],
+            ],
+            'formatted' => [
+                'exchange_rate' => get_amount($preview['exchange_rate'], null, $precision),
+                'provider_amount' => get_amount($preview['provider_amount'], null, $precision),
+                'fee_amount' => get_amount($preview['fee_provider'], null, $precision),
+                'net_provider' => get_amount($preview['net_provider'], null, $precision),
+                'net_base' => get_amount($preview['net_base'], null, $precision),
+                'limits' => [
+                    'min_base' => $minBase ? get_amount($minBase, null, $precision) : null,
+                    'max_base' => $maxBase ? get_amount($maxBase, null, $precision) : null,
+                    'min_provider' => $gateway->min_limit ? get_amount($gateway->min_limit, null, $precision) : null,
+                    'max_provider' => $gateway->max_limit ? get_amount($gateway->max_limit, null, $precision) : null,
+                ],
+            ],
+        ]);
+    }
    public function confirmMoneyOut(Request $request){
     $basic_setting = BasicSettings::first();
     $moneyOutData = (object)session()->get('moneyoutData');

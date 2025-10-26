@@ -8,7 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Helpers\Api\Helpers;
 use App\Http\Helpers\NotificationHelper;
 use App\Http\Helpers\UtilityHelper;
-use App\Jobs\ProcessBillPayment;
+use App\Jobs\BillPay\SyncBillPaymentStatus;
 use App\Models\Admin\Currency;
 use App\Models\Admin\ExchangeRate;
 use App\Models\Admin\TransactionSetting;
@@ -471,8 +471,10 @@ class BillPayController extends Controller
             //admin notification
             $this->adminNotificationAutomatic($trx_id,$charges,$biller,$request_data,$user,$payBill);
             // Dispatch the job to process the payment status
-            ProcessBillPayment::dispatch($transaction)->delay(now()->addSeconds(scheduleBillPayApiCall($payBill)));
-            // ProcessBillPayment::dispatch($transaction)->delay(now()->addSeconds(10));
+            SyncBillPaymentStatus::dispatch($transaction->id)
+                ->onQueue('bill-payments')
+                ->delay(now()->addSeconds(scheduleBillPayApiCall($payBill)));
+            // SyncBillPaymentStatus::dispatch($transaction->id)->delay(now()->addSeconds(10));
 
             $message =  ['success'=>[__('Bill Pay Request Successful')]];
             return Helpers::onlysuccess($message);

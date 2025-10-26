@@ -5,6 +5,7 @@ namespace App\Services\Payouts;
 use App\Contracts\Payouts\PayoutProviderInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use function filter_var;
 
 class BluBankSettlementService implements PayoutProviderInterface
 {
@@ -17,7 +18,7 @@ class BluBankSettlementService implements PayoutProviderInterface
     public function __construct(?array $config = null)
     {
         $this->config = $config ?? config('payouts.providers.blubank', []);
-        $this->sandbox = (bool) config('payouts.feature_flags.sandbox', true);
+        $this->sandbox = filter_var(config('payouts.feature_flags.sandbox', true), FILTER_VALIDATE_BOOLEAN);
     }
 
     public function authenticate(): string

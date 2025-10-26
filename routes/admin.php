@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\GiftCardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\TrxSettingsController;
 use App\Http\Controllers\Admin\AddMoneyController;
 use App\Http\Controllers\Admin\AdminCareController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Admin\CountryRestrictionController;
 use App\Http\Controllers\Admin\CryptoAssetController;
 use App\Http\Controllers\Admin\ExtensionsController;
 use App\Http\Controllers\Admin\FrontendHeaderSectionController;
+use App\Http\Controllers\Admin\HelpContentAnalyticsController;
 use App\Http\Controllers\Admin\GatewayApiController;
 use App\Http\Controllers\Admin\LanguageController;
 use App\Http\Controllers\Admin\LiveExchangeRateApiController;
@@ -32,9 +34,12 @@ use App\Http\Controllers\Admin\NewsletterController;
 use App\Http\Controllers\Admin\PaymentGatewayCurrencyController;
 use App\Http\Controllers\Admin\PaymentGatewaysController;
 use App\Http\Controllers\Admin\PaymentLinkController;
+use App\Http\Controllers\Admin\PricingRuleController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\ProfitLogsController;
 use App\Http\Controllers\Admin\PushNotificationController;
+use App\Http\Controllers\Admin\QueueMonitorController;
+use App\Http\Controllers\Admin\RiskManagementController;
 use App\Http\Controllers\Admin\RemitanceController;
 use App\Http\Controllers\Admin\RequestMoneyController;
 use App\Http\Controllers\Admin\SendMoneyController;
@@ -47,6 +52,7 @@ use App\Http\Controllers\Admin\SetupNotificationController;
 use App\Http\Controllers\Admin\SetupPagesController;
 use App\Http\Controllers\Admin\SetupSectionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
+use App\Http\Controllers\Admin\Support\SupportAnalyticsController;
 use App\Http\Controllers\Admin\SystemMaintenanceController;
 use App\Http\Controllers\Admin\ToAgentMoneyOutController;
 use App\Http\Controllers\Admin\UsefulLInkController;
@@ -68,6 +74,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('logout', 'logout')->name('logout');
         Route::post('notifications/clear','notificationsClear')->name('notifications.clear');
     });
+
+    Route::get('documentation', [DocumentationController::class, 'index'])->name('documentation.index');
     // Admin Profile
     Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
         Route::get('index', 'index')->name('index');
@@ -77,6 +85,20 @@ Route::prefix('admin')->name('admin.')->group(function () {
         //google 2fa
         Route::get('google/2fa','google2FaView')->name('google.2fa.view');
         Route::post('google/2fa','google2FAStatusUpdate')->name('google.2fa.status.update');
+    });
+
+    Route::controller(HelpContentAnalyticsController::class)->prefix('help-center')->name('help-center.')->group(function () {
+        Route::get('analytics', 'index')->name('analytics');
+    });
+
+    Route::controller(RiskManagementController::class)->prefix('risk')->name('risk.')->group(function () {
+        Route::get('dashboard', 'dashboard')->name('dashboard');
+        Route::post('rules', 'storeRule')->name('rules.store');
+        Route::put('rules/{rule}', 'updateRule')->name('rules.update');
+        Route::delete('rules/{rule}', 'deleteRule')->name('rules.delete');
+        Route::post('thresholds', 'storeThreshold')->name('thresholds.store');
+        Route::put('thresholds/{threshold}', 'updateThreshold')->name('thresholds.update');
+        Route::delete('thresholds/{threshold}', 'deleteThreshold')->name('thresholds.delete');
     });
     // Setup Currency Section
     Route::controller(CurrencyController::class)->prefix('currency')->name('currency.')->group(function () {
@@ -108,6 +130,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('index', 'index')->name('index');
         Route::put('charges/update', 'trxChargeUpdate')->name('charges.update');
     });
+    Route::resource('pricing-rules', PricingRuleController::class)->except(['show']);
     // virtual card api
     Route::controller(VirtualCardController::class)->prefix('virtual-card')->name('virtual.card.')->group(function () {
         Route::get('api/settings', 'cardApi')->name('api');
@@ -586,7 +609,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('index', 'index')->name('index');
     });
 
+    Route::get('queues/horizon', [QueueMonitorController::class, 'index'])->name('queues.horizon');
+
     // Support Ticked Section
+    Route::get('support/analytics', [SupportAnalyticsController::class, 'index'])->name('support.analytics');
+
     Route::controller(SupportTicketController::class)->prefix('support-ticket')->name('support.ticket.')->group(function () {
         Route::get('index', 'index')->name('index');
         Route::get('active', 'active')->name('active');

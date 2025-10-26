@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Analytics\DashboardController;
 use App\Http\Controllers\Api\Agent\AddMoneyController as AgentAddMoneyController;
 use App\Http\Controllers\Api\User\AddMoneyController as UserAddMoneyController;
 use App\Http\Controllers\DeveloperController;
+use App\Http\Controllers\HelpContentController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\User\AddMoneyController;
 use App\Http\Controllers\User\PaymentLinkController;
@@ -43,11 +45,23 @@ Route::controller(SiteController::class)->group(function(){
 
 });
 
+Route::prefix('help-center')->name('help-center.')->controller(HelpContentController::class)->group(function () {
+    Route::get('sections', 'index')->name('sections.index');
+    Route::get('sections/{section}', 'show')->name('sections.show');
+    Route::post('sections/{section}/track', 'track')->name('sections.track');
+    Route::post('sections/{section}/faq', 'faq')->name('sections.faq');
+});
+
 Route::controller(DeveloperController::class)->prefix('developer')->name('developer.')->group(function(){
     Route::get('/','index')->name('index');
+    Route::get('quick-start','quickStart')->name('quickstart');
     Route::get('prerequisites','prerequisites')->name('prerequisites');
     Route::get('authentication','authentication')->name('authentication');
     Route::get('base-url','baseUrl')->name('base.url');
+    Route::get('sandbox','sandbox')->name('sandbox');
+    Route::get('openapi','openapi')->name('openapi');
+    Route::get('postman','postman')->name('postman');
+    Route::get('feedback','feedback')->name('feedback');
     Route::get('access.token','accessToken')->name('access.token');
     Route::get('initiate-payment','initiatePayment')->name('initiate.payment');
     Route::get('check-status-payment','checkStatusPayment')->name('check.status.payment');
@@ -119,6 +133,11 @@ Route::controller(PaymentLinkController::class)->prefix('payment-link')->name('p
         Route::get('login/{token}','userLogin')->name('login')->middleware(['web','auth']);
 
     });
+});
+
+Route::middleware(['web', 'auth', 'verification.guard'])->group(function () {
+    Route::get('/analytics/dashboard', DashboardController::class)
+        ->name('analytics.dashboard');
 });
 
 Route::get('token',function(){

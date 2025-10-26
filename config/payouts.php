@@ -6,21 +6,120 @@ return [
         'sandbox' => filter_var(env('FEATURE_PAYOUTS_SANDBOX', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
     ],
 
-    'providers' => [
-        'blubank' => [
-            'merchant_id' => env('BLUBANK_MERCHANT_ID', 'sandbox-merchant'),
-            'secret_key' => env('BLUBANK_SECRET_KEY', ''),
-            'default_currency' => env('BLUBANK_DEFAULT_CURRENCY', 'KES'),
-            'exchange_rates' => [
-                'KES' => 1.0,
-                'USD' => env('BLUBANK_RATE_USD', 0.0071),
-                'EUR' => env('BLUBANK_RATE_EUR', 0.0064),
+return [
+    'countries' => [
+        'CN' => [
+            'currency' => 'CNY',
+            'providers' => [
+                'bank_transfer' => [
+                    'class' => ChinaBankTransferService::class,
+                    'fee' => 0.0125,
+                    'limits' => [
+                        'min' => 500,
+                        'max' => 50000,
+                    ],
+                    'banks' => [
+                        [
+                            'name' => 'Industrial and Commercial Bank of China',
+                            'code' => 'ICBC',
+                            'swift' => 'ICBKCNBJ',
+                        ],
+                        [
+                            'name' => 'Bank of China',
+                            'code' => 'BOC',
+                            'swift' => 'BKCHCNBJ',
+                        ],
+                        [
+                            'name' => 'China Construction Bank',
+                            'code' => 'CCB',
+                            'swift' => 'PCBCCNBJ',
+                        ],
+                    ],
+                ],
             ],
-            'endpoints' => [
-                'wallet' => env('BLUBANK_WALLET_ENDPOINT', 'https://api.blubank.test/wallet'),
-                'qr' => env('BLUBANK_QR_ENDPOINT', 'https://api.blubank.test/qr'),
-                'bank' => env('BLUBANK_BANK_ENDPOINT', 'https://api.blubank.test/bank'),
-                'status' => env('BLUBANK_STATUS_ENDPOINT', 'https://api.blubank.test/status'),
+        ],
+        'TR' => [
+            'currency' => 'TRY',
+            'providers' => [
+                'bank_transfer' => [
+                    'class' => TurkeyBankTransferService::class,
+                    'fee' => 35.0,
+                    'limits' => [
+                        'min' => 100,
+                        'max' => 250000,
+                    ],
+                    'banks' => [
+                        [
+                            'name' => 'Türkiye İş Bankası',
+                            'iban_prefix' => 'TR33',
+                            'code' => 'ISBKTRIS',
+                        ],
+                        [
+                            'name' => 'Garanti BBVA',
+                            'iban_prefix' => 'TR94',
+                            'code' => 'TGBATRIS',
+                        ],
+                        [
+                            'name' => 'Akbank',
+                            'iban_prefix' => 'TR84',
+                            'code' => 'AKBKTRIS',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'RU' => [
+            'currency' => 'RUB',
+            'providers' => [
+                'bank_transfer' => [
+                    'class' => RussiaBankTransferService::class,
+                    'fee' => 0.01,
+                    'limits' => [
+                        'min' => 1000,
+                        'max' => 1000000,
+                    ],
+                    'banks' => [
+                        [
+                            'name' => 'Sberbank',
+                            'code' => 'SABRRUMM',
+                        ],
+                        [
+                            'name' => 'VTB Bank',
+                            'code' => 'VTBRRUMM',
+                        ],
+                        [
+                            'name' => 'Alfa Bank',
+                            'code' => 'ALFARUMM',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'IR' => [
+            'currency' => 'IRR',
+            'providers' => [
+                'crypto' => [
+                    'class' => IranCryptoPayoutService::class,
+                    'fee' => 0.02,
+                    'limits' => [
+                        'min' => 50,
+                        'max' => 25000,
+                    ],
+                    'networks' => [
+                        'USDT' => [
+                            'networks' => ['TRC20', 'ERC20'],
+                            'fee' => 0.015,
+                        ],
+                        'USDC' => [
+                            'networks' => ['TRC20'],
+                            'fee' => 0.01,
+                        ],
+                        'BTC' => [
+                            'networks' => ['BTC'],
+                            'fee' => 0.0005,
+                        ],
+                    ],
+                ],
             ],
         ],
     ],
