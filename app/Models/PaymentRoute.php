@@ -20,8 +20,7 @@ class PaymentRoute extends Model
         'priority',
         'fee',
         'max_amount',
-        'destination_country',
-        'is_active',
+        'sla_thresholds',
     ];
 
     /**

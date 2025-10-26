@@ -46,6 +46,7 @@
 </script>
  <!-- main -->
  <script src="{{ asset('public/frontend/') }}/js/main.js"></script>
+ <script type="module" src="{{ asset('public/frontend/js/offline-manager.js') }}"></script>
  <script>
 function laravelCsrf() {
     return $("head meta[name=csrf-token]").attr("content");

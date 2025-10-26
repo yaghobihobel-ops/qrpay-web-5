@@ -88,15 +88,25 @@ class PaymentRouter
         return null;
     }
 
-    /**
-     * Provide the next best route excluding the failed provider.
-     *
-     * @param array<string, mixed> $context
-     */
-    public function getFailoverRoute(array $context, string $failedProvider): ?array
-    {
-        $excluded = array_map('strtolower', (array) ($context['excluded_providers'] ?? []));
-        $excluded[] = strtolower($failedProvider);
+    private function passesPolicies(
+        PaymentProviderAdapterInterface $provider,
+        PaymentRoute $route,
+        array $slaProfile,
+        array $kpiMetrics,
+        User $user,
+        float $amount,
+        string $currency,
+        string $destinationCountry,
+        array $slaPolicies
+    ): bool {
+        if (! $this->passesRouteThresholds($route, $slaProfile, $kpiMetrics)) {
+            return false;
+        }
+
+        foreach ($slaPolicies as $policy) {
+            if (!\is_callable($policy)) {
+                continue;
+            }
 
         $context['excluded_providers'] = array_values(array_unique($excluded));
 
@@ -150,35 +160,116 @@ class PaymentRouter
         return true;
     }
 
-    protected function normalizeAmount(mixed $amount): ?float
+    private function passesRouteThresholds(PaymentRoute $route, array $slaProfile, array $kpiMetrics): bool
     {
-        if ($amount === null || $amount === '') {
-            return null;
+        $thresholds = $route->sla_thresholds;
+
+        if (!\is_array($thresholds) || $thresholds === []) {
+            return true;
         }
 
-        if (is_string($amount)) {
-            $amount = str_replace(',', '', $amount);
+        $normalised = $this->normaliseThresholds($thresholds);
+
+        foreach ($normalised['sla'] as $metric => $threshold) {
+            if (! array_key_exists($metric, $slaProfile)) {
+                return false;
+            }
+
+            if (! $this->compareMetric($metric, $slaProfile[$metric], $threshold)) {
+                return false;
+            }
         }
 
-        if (!is_numeric($amount)) {
-            return null;
+        foreach ($normalised['kpi'] as $metric => $threshold) {
+            if (! array_key_exists($metric, $kpiMetrics)) {
+                return false;
+            }
+
+            if (! $this->compareMetric($metric, $kpiMetrics[$metric], $threshold)) {
+                return false;
+            }
         }
 
-        return (float) $amount;
+        return true;
     }
 
-    protected function formatDecision(PaymentRoute $route, PaymentProviderAdapter $adapter): array
+    private function normaliseThresholds(array $thresholds): array
     {
-        return [
-            'provider' => $adapter->getName(),
-            'route_id' => $route->getKey(),
-            'priority' => $route->priority,
-            'fee' => $route->fee,
-            'max_amount' => $route->max_amount,
-            'sla' => [
-                'score' => $adapter->getSlaScore(),
-                'kpi' => $adapter->getKpiMetrics(),
-            ],
+        $normalised = [
+            'sla' => [],
+            'kpi' => [],
         ];
+
+        if (isset($thresholds['sla']) || isset($thresholds['kpi'])) {
+            $normalised['sla'] = \is_array($thresholds['sla'] ?? null) ? $this->flattenNumericValues($thresholds['sla']) : [];
+            $normalised['kpi'] = \is_array($thresholds['kpi'] ?? null) ? $this->flattenNumericValues($thresholds['kpi']) : [];
+
+            return $normalised;
+        }
+
+        foreach ($this->flattenNumericValues($thresholds) as $metric => $value) {
+            if ($this->isKpiMetric($metric)) {
+                $normalised['kpi'][$metric] = $value;
+                continue;
+            }
+
+            $normalised['sla'][$metric] = $value;
+        }
+
+        return $normalised;
+    }
+
+    private function flattenNumericValues(array $values): array
+    {
+        $flattened = [];
+
+        foreach ($values as $metric => $value) {
+            if (\is_array($value)) {
+                continue;
+            }
+
+            if (! \is_numeric($value)) {
+                continue;
+            }
+
+            $flattened[$this->normaliseMetricName((string) $metric)] = (float) $value;
+        }
+
+        return $flattened;
+    }
+
+    private function compareMetric(string $metric, float $actual, float $threshold): bool
+    {
+        if ($this->isLowerBetterMetric($metric)) {
+            return $actual <= $threshold;
+        }
+
+        return $actual >= $threshold;
+    }
+
+    private function normaliseMetricName(string $metric): string
+    {
+        return strtolower(trim($metric));
+    }
+
+    private function isLowerBetterMetric(string $metric): bool
+    {
+        $metric = $this->normaliseMetricName($metric);
+
+        return str_contains($metric, 'latency')
+            || str_contains($metric, 'response')
+            || str_contains($metric, 'delay')
+            || str_contains($metric, 'error_rate');
+    }
+
+    private function isKpiMetric(string $metric): bool
+    {
+        $metric = $this->normaliseMetricName($metric);
+
+        return str_contains($metric, 'success')
+            || str_contains($metric, 'throughput')
+            || str_contains($metric, 'conversion')
+            || str_contains($metric, 'completion')
+            || str_contains($metric, 'error_rate');
     }
 }

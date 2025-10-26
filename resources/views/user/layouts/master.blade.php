@@ -14,6 +14,106 @@
     @vite(['resources/css/app.css', 'resources/sass/app.scss', 'resources/js/app.js'])
 
     @stack('css')
+
+    <style>
+        .offline-banner {
+            position: fixed;
+            right: 1.5rem;
+            bottom: 1.5rem;
+            width: min(360px, calc(100% - 2rem));
+            border-radius: 1rem;
+            padding: 1rem 1.25rem;
+            background: rgba(17, 24, 39, 0.92);
+            color: #ffffff;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+            z-index: 1090;
+            backdrop-filter: blur(6px);
+            font-size: 0.875rem;
+        }
+
+        .offline-banner.is-offline {
+            background: rgba(185, 28, 28, 0.92);
+        }
+
+        .offline-banner[hidden] {
+            display: none !important;
+        }
+
+        .offline-banner__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .offline-banner__status {
+            font-weight: 600;
+        }
+
+        .offline-banner__meta {
+            font-size: 0.75rem;
+            opacity: 0.85;
+            margin-top: 0.2rem;
+        }
+
+        .offline-banner__retry {
+            border: 0;
+            border-radius: 999px;
+            padding: 0.35rem 0.9rem;
+            font-weight: 600;
+            color: #111827;
+            background: #fbbf24;
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+
+        .offline-banner__retry:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .offline-banner__feedback {
+            min-height: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            opacity: 0.9;
+        }
+
+        .offline-banner__list {
+            list-style: none;
+            margin: 0.75rem 0 0;
+            padding: 0;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .offline-banner__item + .offline-banner__item {
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+        }
+
+        .offline-banner__item-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .offline-banner__item-subtitle {
+            font-size: 0.72rem;
+            opacity: 0.85;
+            margin-top: 0.35rem;
+            word-break: break-word;
+        }
+
+        @media (max-width: 575px) {
+            .offline-banner {
+                right: 1rem;
+                left: 1rem;
+                width: auto;
+            }
+        }
+    </style>
 </head>
 @php
     $user = auth()->user();
@@ -46,6 +146,19 @@
         End Dashboard
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
     <a href="{{ setRoute('user.receive.money.index') }}" class="qr-scan"><i class="fas fa-qrcode"></i></a>
+
+    <div id="offline-status-banner" class="offline-banner" hidden aria-live="polite">
+        <div class="offline-banner__header">
+            <div>
+                <div id="offline-status-text" class="offline-banner__status">You are offline.</div>
+                <div class="offline-banner__meta"><span id="offline-queue-count">0</span> queued transaction(s)</div>
+            </div>
+            <button type="button" id="offline-queue-retry" class="offline-banner__retry">Retry now</button>
+        </div>
+        <div id="offline-queue-feedback" class="offline-banner__feedback" aria-live="polite"></div>
+        <ul id="offline-queue-list" class="offline-banner__list" aria-live="polite"></ul>
+    </div>
+
     @include('user.partials.footer-assets')
     @include('user.partials.push-notification')
     @stack('script')
