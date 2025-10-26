@@ -8,7 +8,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\TrxSettingsController;
 use App\Http\Controllers\Admin\AddMoneyController;
-use App\Http\Controllers\Admin\ApiHelpController;
+use App\Http\Controllers\Admin\DeveloperPortalController as AdminDeveloperPortalController;
 use App\Http\Controllers\Admin\AdminCareController;
 use App\Http\Controllers\Admin\AgentCareController;
 use App\Http\Controllers\Admin\AppOnboardScreensController;
@@ -558,6 +558,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('index', 'index')->name('index');
         Route::put('status/update','statusUpdate')->name('status.update');
     });
+    Route::get('developer-portal/guide', [AdminDeveloperPortalController::class, 'guide'])->name('developer.portal.guide');
     // Extensions Section
     Route::controller(ExtensionsController::class)->prefix('extensions')->name('extensions.')->group(function () {
         Route::get('index', 'index')->name('index');
