@@ -32,6 +32,17 @@
                         <h5 class="title">{{ __($page_title) }}</h5>
                     </div>
                     <div class="dash-payment-body">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                @include('user.components.localized-wizard-hint', [
+                                    'context' => 'add-money',
+                                    'heading' => __('messaging.labels.localized_guidance'),
+                                    'description' => __('messaging.labels.instructions_heading'),
+                                    'defaultLocale' => app()->getLocale(),
+                                    'dusk' => 'add-money-localized-wizard',
+                                ])
+                            </div>
+                        </div>
                         <form class="card-form" action="{{ setRoute("user.add.money.submit") }}" method="POST">
                             @csrf
                             <div class="row">
@@ -156,6 +167,14 @@
                                     <span class="text--warning last pay-in-total">--</span>
                                 </div>
                             </div>
+                        </div>
+                        <div class="mt-4">
+                            @include('user.components.scenario-explorer', [
+                                'scenario' => 'alipay',
+                                'heading' => __('messaging.labels.alipay_flow_heading'),
+                                'defaultLocale' => app()->getLocale(),
+                                'dusk' => 'alipay-scenario',
+                            ])
                         </div>
                     </div>
                 </div>

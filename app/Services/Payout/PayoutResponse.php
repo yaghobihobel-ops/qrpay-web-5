@@ -5,28 +5,33 @@ namespace App\Services\Payout;
 class PayoutResponse
 {
     public function __construct(
-        public readonly bool $success,
-        public readonly string $message,
-        public readonly array $data = []
+        protected bool $successful,
+        protected array $data = [],
+        protected ?string $message = null,
+        protected int $statusCode = 0
     ) {
     }
 
-    public static function success(string $message, array $data = []): self
+    public function isSuccessful(): bool
     {
-        return new self(true, $message, $data);
+        return $this->successful;
     }
 
-    public static function failure(string $message, array $data = []): self
+    /**
+     * @return array<string, mixed>
+     */
+    public function data(): array
     {
-        return new self(false, $message, $data);
+        return $this->data;
     }
 
-    public function toArray(): array
+    public function message(): ?string
     {
-        return [
-            'success' => $this->success,
-            'message' => $this->message,
-            'data' => $this->data,
-        ];
+        return $this->message;
+    }
+
+    public function statusCode(): int
+    {
+        return $this->statusCode;
     }
 }

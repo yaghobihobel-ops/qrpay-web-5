@@ -26,12 +26,14 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\Security\LogsSecurityEvents;
 
 
 class MakePaymentController extends Controller
 {
     protected  $trx_id;
     protected $basic_settings;
+    use LogsSecurityEvents;
     public function __construct()
     {
         $this->trx_id = 'SM'.getTrxNum();
@@ -110,6 +112,12 @@ class MakePaymentController extends Controller
             'email'     => "required|email",
         ]);
         if($validator->fails()){
+            $this->logSecurityWarning('api_make_payment_validation_failed', [
+                'user_id' => auth()->id(),
+                'errors' => $validator->errors()->all(),
+                'context' => 'user_api',
+                'ip' => $request->ip(),
+            ]);
             $error =  ['error'=>$validator->errors()->all()];
             return Helpers::validation($error);
         }
@@ -174,28 +182,67 @@ class MakePaymentController extends Controller
         $makePaymentCharge = TransactionSetting::where('slug','make-payment')->where('status',1)->first();
         $userWallet = UserWallet::where('user_id',$user->id)->active()->first();
         if(!$userWallet){
+            $this->logSecurityWarning('api_make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'reason' => 'user_wallet_not_found',
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__('User wallet not found')]];
             return Helpers::error($error);
         }
         $baseCurrency = Currency::default();
         if(!$baseCurrency){
+            $this->logSecurityWarning('api_make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'reason' => 'base_currency_missing',
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__('Default currency not found')]];
             return Helpers::error($error);
         }
         $rate = $baseCurrency->rate;
         $receiver = Merchant::where('email', $request->email)->active()->first();
         if(!$receiver){
+            $this->logSecurityWarning('api_make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'reason' => 'receiver_not_found',
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__('Receiver not exist')]];
             return Helpers::error($error);
         }
         $receiverWallet = MerchantWallet::where('merchant_id',$receiver->id)->first();
         if(!$receiverWallet){
+            $this->logSecurityWarning('api_make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'amount' => $amount,
+                'reason' => 'receiver_wallet_not_found',
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__('Receiver wallet not found')]];
             return Helpers::error($error);
         }
         $minLimit =  $makePaymentCharge->min_limit *  $rate;
         $maxLimit =  $makePaymentCharge->max_limit *  $rate;
         if($amount < $minLimit || $amount > $maxLimit) {
+            $this->logSecurityWarning('api_make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'amount' => $amount,
+                'reason' => 'amount_out_of_bounds',
+                'min_limit' => $minLimit,
+                'max_limit' => $maxLimit,
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__("Please follow the transaction limit")]];
             return Helpers::error($error);
         }
@@ -206,6 +253,16 @@ class MakePaymentController extends Controller
         $payable = $total_charge + $amount;
         $recipient = $amount;
         if($payable > $userWallet->balance ){
+            $this->logSecurityWarning('api_make_payment_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'amount' => $amount,
+                'payable' => $payable,
+                'balance' => $userWallet->balance,
+                'reason' => 'insufficient_balance',
+                'context' => 'user_api',
+            ]);
             $error = ['error'=>[__('Sorry, insufficient balance')]];
             return Helpers::error($error);
         }
@@ -252,9 +309,25 @@ class MakePaymentController extends Controller
             }catch(Exception $e){}
             //admin notification
             $this->adminNotification($trx_id,$total_charge,$amount,$payable,$user,$receiver);
+            $this->logSecurityInfo('api_make_payment_success', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'receiver_email' => $receiver->email,
+                'trx_id' => $trx_id,
+                'amount' => $amount,
+                'payable' => $payable,
+                'context' => 'user_api',
+            ]);
             $message = ['success'=>[__('Make Payment successful to').' '.$receiver->fullname]];
             return Helpers::onlysuccess($message);
         }catch(Exception $e) {
+            $this->logSecurityError('api_make_payment_exception', [
+                'user_id' => $user->id,
+                'receiver_email' => $request->email,
+                'amount' => $amount,
+                'context' => 'user_api',
+                'message' => $e->getMessage(),
+            ]);
             $error = ['error'=>[__("Something went wrong! Please try again.")]];
             return Helpers::error($error);
         }
@@ -292,6 +365,15 @@ class MakePaymentController extends Controller
             DB::commit();
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('api_make_payment_sender_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'trx_id' => $trx_id,
+                'amount' => $amount,
+                'payable' => $payable,
+                'context' => 'user_api',
+                'message' => $e->getMessage(),
+            ]);
             $error = ['error'=>[__("Something went wrong! Please try again.")]];
             return Helpers::error($error);
         }
@@ -339,6 +421,13 @@ class MakePaymentController extends Controller
 
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('api_make_payment_sender_charge_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'transaction_id' => $id,
+                'context' => 'user_api',
+                'message' => $e->getMessage(),
+            ]);
             $error = ['error'=>[__("Something went wrong! Please try again.")]];
             return Helpers::error($error);
         }
@@ -374,6 +463,14 @@ class MakePaymentController extends Controller
             DB::commit();
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('api_make_payment_receiver_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'trx_id' => $trx_id,
+                'amount' => $amount,
+                'context' => 'user_api',
+                'message' => $e->getMessage(),
+            ]);
             $error = ['error'=>[__("Something went wrong! Please try again.")]];
             return Helpers::error($error);
         }
@@ -420,6 +517,13 @@ class MakePaymentController extends Controller
             }
         }catch(Exception $e) {
             DB::rollBack();
+            $this->logSecurityError('api_make_payment_receiver_charge_failed', [
+                'user_id' => $user->id,
+                'receiver_id' => $receiver->id,
+                'transaction_id' => $id,
+                'context' => 'user_api',
+                'message' => $e->getMessage(),
+            ]);
             $error = ['error'=>[__("Something went wrong! Please try again.")]];
             return Helpers::error($error);
         }

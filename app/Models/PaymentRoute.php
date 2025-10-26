@@ -9,20 +9,27 @@ class PaymentRoute extends Model
 {
     use HasFactory;
 
+    protected $table = 'payment_routes';
+
+    /**
+     * @var array<int, string>
+     */
     protected $fillable = [
         'provider',
         'currency',
-        'destination_country',
         'priority',
         'fee',
         'max_amount',
         'sla_thresholds',
     ];
 
+    /**
+     * @var array<string, string>
+     */
     protected $casts = [
-        'priority' => 'integer',
-        'fee' => 'decimal:4',
-        'max_amount' => 'decimal:2',
-        'sla_thresholds' => 'array',
+        'priority' => 'int',
+        'fee' => 'float',
+        'max_amount' => 'float',
+        'is_active' => 'bool',
     ];
 }

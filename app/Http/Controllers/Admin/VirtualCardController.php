@@ -42,6 +42,9 @@ class VirtualCardController extends Controller
             'strowallet_public_key'     => 'required_if:api_method,strowallet',
             'strowallet_secret_key'     => 'required_if:api_method,strowallet',
             'strowallet_url'            => 'required_if:api_method,strowallet',
+            'strowallet_city'           => 'required_if:api_method,strowallet|string',
+            'strowallet_country'        => 'required_if:api_method,strowallet|string',
+            'strowallet_developer_code' => 'required_if:api_method,strowallet|string',
             'image'                     => "nullable|mimes:png,jpg,jpeg,webp,svg",
             'card_limit' => [
                 'required',
@@ -53,7 +56,12 @@ class VirtualCardController extends Controller
             return back()->withErrors($validator)->withInput();
         }
         $request->merge(['name'=>$request->api_method]);
-        $data = array_filter($request->except('_token','api_method','_method','card_details','image','card_limit'));
+        $data = array_filter(
+            $request->except('_token','api_method','_method','card_details','image','card_limit'),
+            function ($value) {
+                return !is_null($value);
+            }
+        );
 
         $api = VirtualCardApi::first();
         $api->card_details = $request->card_details;
