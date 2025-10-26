@@ -45,10 +45,11 @@ class PaymentGateway {
 
     protected ?RegionalPaymentManager $regionalManager = null;
 
-    public function __construct(PaymentProviderResolver $providerResolver)
+
+    public function __construct(array $request_data, ?RegionalPaymentManager $regionalManager = null)
     {
-        $this->providerResolver = $providerResolver;
-        $this->request_data = [];
+        $this->request_data = $request_data;
+        $this->regionalManager = $regionalManager;
     }
 
     public static function init(array $data) {
@@ -61,6 +62,30 @@ class PaymentGateway {
     {
         $this->request_data = $data;
         return $this;
+    }
+
+    protected function getRegionalManager(): ?RegionalPaymentManager
+    {
+        if ($this->regionalManager) {
+            return $this->regionalManager;
+        }
+
+        if (function_exists('app') && app()->bound(RegionalPaymentManager::class)) {
+            $this->regionalManager = app(RegionalPaymentManager::class);
+        }
+
+        return $this->regionalManager;
+    }
+
+    protected function resolveRegionalProvider(?string $currencyCode): ?RegionalPaymentProviderInterface
+    {
+        $manager = $this->getRegionalManager();
+
+        if (!$currencyCode || !$manager) {
+            return null;
+        }
+
+        return $manager->resolveByCurrency($currencyCode);
     }
 
     protected function getRegionalManager(): ?RegionalPaymentManager

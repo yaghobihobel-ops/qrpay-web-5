@@ -6,6 +6,8 @@ use App\Constants\ExtensionConst;
 use App\Models\Transaction;
 use App\Observers\TransactionObserver;
 use App\Providers\Admin\ExtensionProvider;
+use App\Services\Payments\InternalWalletService;
+use App\Services\Payments\Regional\RegionalPaymentManager;
 use App\Services\VirtualCard\KycProviderInterface;
 use App\Services\VirtualCard\StrowalletVirtualCardService;
 use App\Services\VirtualCard\VirtualCardProviderInterface;
@@ -28,6 +30,16 @@ class AppServiceProvider extends ServiceProvider
     */
     public function register()
     {
+        $this->app->singleton(InternalWalletService::class, fn () => new InternalWalletService());
+
+        $this->app->singleton(RegionalPaymentManager::class, function ($app) {
+            return new RegionalPaymentManager(
+                $app->make(InternalWalletService::class),
+                config('payments.regional_providers', [])
+            );
+        });
+
+        $this->app->alias(RegionalPaymentManager::class, 'regional.payment.manager');
         foreach (config('payments.providers', []) as $provider) {
             $class = $provider['class'] ?? null;
             if (!$class) {
