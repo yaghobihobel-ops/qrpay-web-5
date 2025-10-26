@@ -2,10 +2,22 @@
     "private": true,
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "generate:sdk": "npm run generate:sdk:ts && npm run generate:sdk:php && npm run generate:sdk:python",
+        "generate:sdk:ts": "openapi-generator-cli generate -i public/docs/openapi/v2/openapi.yaml -g typescript-axios -o sdks/typescript --additional-properties=supportsES6=true,withSeparateModelsAndApi=true",
+        "generate:sdk:php": "openapi-generator-cli generate -i public/docs/openapi/v2/openapi.yaml -g php -o sdks/php --additional-properties=packageName=QrPaySdkPhp,invokerPackage=QrPay\\\\Sdk",
+        "generate:sdk:python": "openapi-generator-cli generate -i public/docs/openapi/v2/openapi.yaml -g python -o sdks/python --additional-properties=packageName=qrpay_sdk"
+    },
+    "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "vue": "^3.4.0"
     },
     "devDependencies": {
+        "@openapitools/openapi-generator-cli": "^2.7.0",
         "@popperjs/core": "^2.11.6",
+        "@vitejs/plugin-react": "^3.1.0",
+        "@vitejs/plugin-vue": "^4.0.0",
         "axios": "^1.1.2",
         "bootstrap": "^5.2.3",
         "@vitejs/plugin-react": "^3.1.0",

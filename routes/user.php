@@ -22,6 +22,7 @@ use App\Http\Controllers\User\SendMoneyController;
 use App\Http\Controllers\User\ReceipientController;
 use App\Http\Controllers\User\MobileTopupController;
 use App\Http\Controllers\User\PaymentLinkController;
+use App\Http\Controllers\User\PricingController;
 use App\Http\Controllers\User\TransactionController;
 use App\Http\Controllers\User\VirtualcardController;
 use App\Http\Controllers\User\ReceiveMoneyController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\User\PreferencesController;
 
 Route::prefix("user")->name("user.")->group(function(){
     Route::post("info",[GlobalController::class,'userInfo'])->name('info');
+    Route::post('pricing/quote', [PricingController::class, 'quote'])->name('pricing.quote');
     Route::controller(DashboardController::class)->group(function(){
         Route::get('dashboard','index')->name('dashboard');
         Route::get('qr/scan/{qr_code}','qrScan')->name('qr.scan');
@@ -143,11 +145,12 @@ Route::prefix("user")->name("user.")->group(function(){
     });
     //withdraw money
     Route::middleware('module:withdraw-money')->group(function(){
-        Route::controller(MoneyOutController::class)->prefix('withdraw')->name('money.out.')->group(function(){
+        Route::controller(MoneyOutController::class)->prefix('withdraw')->name('money.out.')->middleware('domain.rate_limit:withdrawal,user-withdraw')->group(function(){
             Route::get('/','index')->name('index');
             Route::post('insert','paymentInsert')->name('insert')->middleware('kyc.verification.guard');
             Route::get('preview','preview')->name('preview');
             Route::post('confirm','confirmMoneyOut')->name('confirm')->middleware('kyc.verification.guard');
+            Route::post('quote','quote')->name('quote');
 
             //check bank validation
             Route::post('check/flutterwave/bank','checkBanks')->name('check.flutterwave.bank');
@@ -160,7 +163,7 @@ Route::prefix("user")->name("user.")->group(function(){
     Route::middleware('module:virtual-card')->group(function(){
         //virtual card flutterwave
         Route::middleware('virtual_card_method:flutterwave')->group(function(){
-            Route::controller(VirtualcardController::class)->prefix('virtual-card')->name('virtual.card.')->group(function(){
+            Route::controller(VirtualcardController::class)->prefix('virtual-card')->name('virtual.card.')->middleware('domain.rate_limit:card,user-virtual-card')->group(function(){
                 Route::get('/','index')->name('index');
                 Route::post('create','cardBuy')->name('create')->middleware('kyc.verification.guard');
                 Route::post('fund','cardFundConfirm')->name('fund.confirm')->middleware('kyc.verification.guard');
@@ -173,7 +176,7 @@ Route::prefix("user")->name("user.")->group(function(){
         });
         //virtual card sudo
         Route::middleware('virtual_card_method:sudo')->group(function(){
-            Route::controller(SudoVirtualCardController::class)->prefix('sudo-virtual-card')->name('sudo.virtual.card.')->group(function(){
+            Route::controller(SudoVirtualCardController::class)->prefix('sudo-virtual-card')->name('sudo.virtual.card.')->middleware('domain.rate_limit:card,user-sudo-card')->group(function(){
                 Route::get('/','index')->name('index');
                 Route::post('create','cardBuy')->name('create')->middleware('kyc.verification.guard');
                 Route::post('make/default/remove/default','makeDefaultOrRemove')->name('make.default.or.remove');
@@ -185,7 +188,7 @@ Route::prefix("user")->name("user.")->group(function(){
         });
         //virtual card stripe
         Route::middleware('virtual_card_method:stripe')->group(function(){
-            Route::controller(StripeVirtualController::class)->prefix('stripe-virtual-card')->name('stripe.virtual.card.')->group(function(){
+            Route::controller(StripeVirtualController::class)->prefix('stripe-virtual-card')->name('stripe.virtual.card.')->middleware('domain.rate_limit:card,user-stripe-card')->group(function(){
                 Route::get('/','index')->name('index');
                 Route::post('create','cardBuy')->name('create')->middleware('kyc.verification.guard');
                 Route::get('details/{card_id}','cardDetails')->name('details');
@@ -197,7 +200,7 @@ Route::prefix("user")->name("user.")->group(function(){
         });
          //virtual card strowallet
          Route::middleware('virtual_card_method:strowallet')->group(function(){
-            Route::controller(StrowalletVirtualController::class)->prefix('strowallet-virtual-card')->name('strowallet.virtual.card.')->group(function(){
+            Route::controller(StrowalletVirtualController::class)->prefix('strowallet-virtual-card')->name('strowallet.virtual.card.')->middleware('domain.rate_limit:card,user-strowallet-card')->group(function(){
                 Route::get('/','index')->name('index');
 
                 Route::get('create','createPage')->name('create')->middleware('kyc.verification.guard');
@@ -217,14 +220,14 @@ Route::prefix("user")->name("user.")->group(function(){
     });
     //bill pay
     Route::middleware('module:bill-pay')->group(function(){
-        Route::controller(BillPayController::class)->prefix('bill-pay')->name('bill.pay.')->group(function(){
+        Route::controller(BillPayController::class)->prefix('bill-pay')->name('bill.pay.')->middleware('domain.rate_limit:payment,user-bill-pay')->group(function(){
             Route::get('/','index')->name('index');
             Route::post('insert','payConfirm')->name('confirm')->middleware('kyc.verification.guard');
         });
     });
     //Mobile TopUp
     Route::middleware('module:mobile-top-up')->group(function(){
-        Route::controller(MobileTopupController::class)->prefix('mobile-topup')->name('mobile.topup.')->group(function(){
+        Route::controller(MobileTopupController::class)->prefix('mobile-topup')->name('mobile.topup.')->middleware('domain.rate_limit:topup,user-mobile-topup')->group(function(){
             Route::get('/','index')->name('index');
             Route::post('type','selectType')->name('type');
             //manual methods

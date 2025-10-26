@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: qrpay-self-healing
+  namespace: resilience
+spec:
+  route:
+    groupBy: ['alertname', 'remediation']
+    receiver: argo-events
+    routes:
+      - matchers:
+          - name: remediation
+            value: payment-quick-restart
+          - name: severity
+            value: critical
+        receiver: argo-events
+      - matchers:
+          - name: remediation
+            value: shift-traffic-to-secondary
+        receiver: argo-events
+  receivers:
+    - name: argo-events
+      webhookConfigs:
+        - url: http://argo-events-eventsource.argo-events.svc.cluster.local:12000/alertmanager
+          sendResolved: true

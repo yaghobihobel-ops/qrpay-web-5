@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: payment-auto-remediation
+  namespace: resilience
+spec:
+  entrypoint: "{{workflow.parameters.entrypoint}}"
+  arguments:
+    parameters:
+      - name: entrypoint
+        value: restart-payment
+  templates:
+    - name: restart-payment
+      container:
+        image: bitnami/kubectl:1.28
+        command: ["/bin/sh", "-c"]
+        env:
+          - name: TARGET_NAMESPACE
+            value: payments
+          - name: TARGET_DEPLOYMENT
+            value: payment-service
+        args:
+          - |
+            echo "Restarting $TARGET_NAMESPACE/$TARGET_DEPLOYMENT";
+            kubectl rollout restart deployment/$TARGET_DEPLOYMENT -n $TARGET_NAMESPACE;
+            kubectl rollout status deployment/$TARGET_DEPLOYMENT -n $TARGET_NAMESPACE --timeout=5m;
+            echo "Restart completed"
+    - name: shift-traffic
+      container:
+        image: bitnami/kubectl:1.28
+        command: ["/bin/sh", "-c"]
+        env:
+          - name: PRIMARY_WEIGHT
+            value: "0"
+          - name: SECONDARY_WEIGHT
+            value: "100"
+          - name: ISTIO_NAMESPACE
+            value: istio-system
+        args:
+          - |
+            set -euo pipefail
+            echo "Shifting ingress traffic to the secondary data center";
+            kubectl patch virtualservice qrpay-gateway -n ${ISTIO_NAMESPACE} \
+              --type='json' \
+              -p="[\n                {\"op\":\"replace\",\"path\":\"/spec/http/0/route/0/weight\",\"value\":${PRIMARY_WEIGHT}},\n                {\"op\":\"replace\",\"path\":\"/spec/http/0/route/1/weight\",\"value\":${SECONDARY_WEIGHT}}\n              ]";
+            kubectl get virtualservice qrpay-gateway -n ${ISTIO_NAMESPACE}

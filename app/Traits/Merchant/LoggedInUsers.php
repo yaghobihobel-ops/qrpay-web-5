@@ -4,15 +4,19 @@ namespace App\Traits\Merchant;
 
 use App\Constants\PaymentGatewayConst;
 use App\Models\Admin\Currency;
+use App\Models\DeviceFingerprint;
 use App\Models\Merchants\DeveloperApiCredential;
 use App\Models\Merchants\GatewaySetting;
 use App\Models\Merchants\MerchantLoginLog;
 use App\Models\Merchants\MerchantWallet;
 use App\Models\Merchants\SandboxWallet;
+use App\Traits\Security\LogsSecurityEvents;
 use Exception;
 use Jenssegers\Agent\Agent;
 
 trait LoggedInUsers {
+
+    use LogsSecurityEvents;
 
     protected function refreshUserWallets($user) {
         $user_wallets = $user->wallets->pluck("currency_id")->toArray();
@@ -36,7 +40,7 @@ trait LoggedInUsers {
         }
     }
 
-    protected function createLoginLog($user) {
+    protected function createLoginLog($user, ?DeviceFingerprint $fingerprint = null) {
         $client_ip = request()->ip() ?? false;
         $location = geoip()->getLocation($client_ip);
         $agent = new Agent();
@@ -57,12 +61,27 @@ trait LoggedInUsers {
             'timezone'      => $location['timezone'] ?? "",
             'browser'       => $agent->browser() ?? "",
             'os'            => $agent->platform() ?? "",
+            'device_fingerprint_id' => $fingerprint?->id,
         ];
 
         try{
             MerchantLoginLog::create($data);
+            $this->logSecurityInfo('merchant_login_success', [
+                'merchant_id' => $user->id,
+                'fingerprint_id' => $fingerprint?->id,
+                'ip' => $client_ip,
+                'city' => $data['city'],
+                'country' => $data['country'],
+                'browser' => $data['browser'],
+                'os' => $data['os'],
+                'context' => 'merchant_web',
+            ]);
         }catch(Exception $e) {
-            // return false;
+            $this->logSecurityError('merchant_login_log_failed', [
+                'merchant_id' => $user->id,
+                'ip' => $client_ip,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
     protected function refreshSandboxWallets($user) {

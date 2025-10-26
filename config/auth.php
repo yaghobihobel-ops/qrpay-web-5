@@ -162,4 +162,11 @@ return [
 
     'password_timeout' => 10800,
 
+    'rate_limits' => [
+        'user_login' => [
+            'max_attempts' => env('USER_LOGIN_MAX_ATTEMPTS', 5),
+            'decay_seconds' => env('USER_LOGIN_DECAY_SECONDS', 60),
+        ],
+    ],
+
 ];

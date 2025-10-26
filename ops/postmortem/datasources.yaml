@@ -1,0 +1,33 @@
+{
+  "telemetry": {
+    "metrics": {
+      "provider": "prometheus",
+      "endpoint": "http://kube-prometheus-stack-prometheus.monitoring.svc:9090",
+      "queries": {
+        "availability": "1 - (sum(rate(http_server_requests_seconds_count{service=\"payment-service\",status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count{service=\"payment-service\"}[5m])))",
+        "latency_p95": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"payment-service\"}[5m])) by (le))"
+      }
+    },
+    "traces": {
+      "provider": "tempo",
+      "endpoint": "http://tempo.observability.svc.cluster.local:3100",
+      "services": ["qrpay-backend"]
+    },
+    "logs": {
+      "provider": "loki",
+      "endpoint": "http://loki.observability.svc.cluster.local:3100",
+      "selectors": ["{app=\\\"payment-service\\\"} |= \\\"error\\\""]
+    }
+  },
+  "incidents": {
+    "storage": "s3",
+    "bucket": "s3://qrpay-postmortems",
+    "region": "us-east-1",
+    "path_template": "incidents/{{ incident_id }}.json"
+  },
+  "chaos": {
+    "provider": "litmus",
+    "namespace": "chaos",
+    "experiments": ["pod-delete", "pod-network-latency"]
+  }
+}

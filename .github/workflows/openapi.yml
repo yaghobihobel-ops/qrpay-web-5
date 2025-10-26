@@ -1,0 +1,30 @@
+name: OpenAPI quality gate
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  validate-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --include=dev
+
+      - name: Validate OpenAPI schema
+        run: npx @openapitools/openapi-generator-cli@2.7.0 validate -i public/docs/openapi/v2/openapi.yaml
+
+      - name: Generate SDK clients
+        run: npm run generate:sdk

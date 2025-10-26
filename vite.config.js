@@ -16,6 +16,8 @@ export default defineConfig({
             ],
             refresh: true,
         }),
+        vue(),
+        react(),
     ],
     resolve: {
         alias: {

@@ -21,10 +21,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Traits\AdminNotifications\AuthNotifications;
+use App\Traits\TracksQueryPerformance;
 
 class DashboardController extends Controller
 {
-    use AuthNotifications;
+    use AuthNotifications, TracksQueryPerformance;
     public function index()
     {
         $page_title =__( "Dashboard");
