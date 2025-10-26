@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use App\Traits\User\LoggedInUsers;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +49,10 @@ class LoginController extends Controller
             ]);
             $error =  ['error'=>$validator->errors()->all()];
             return ApiHelpers::validation($error);
+        }
+
+        if ($this->isRateLimited($request)) {
+            return $this->sendLockoutResponse($request);
         }
 
         $user = User::where('email',$request->email)->first();
@@ -94,6 +100,8 @@ class LoginController extends Controller
                 'context' => 'user_api',
                 'ip' => $request->ip(),
             ]);
+
+            $this->clearLoginAttempts($request);
 
             $data = ['token' => $token, 'user' => $user, ];
             $message =  ['success'=>[__('Login Successful')]];

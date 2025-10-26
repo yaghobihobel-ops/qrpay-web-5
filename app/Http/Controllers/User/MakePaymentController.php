@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Constants\GlobalConst;
 use App\Constants\NotificationConst;
 use App\Constants\PaymentGatewayConst;
 use App\Http\Controllers\Controller;
@@ -39,7 +40,15 @@ class MakePaymentController extends Controller
         $page_title = __("Make Payment");
         $makePaymentCharge = TransactionSetting::where('slug','make-payment')->where('status',1)->first();
         $transactions = Transaction::auth()->makePayment()->latest()->take(10)->get();
-        return view('user.sections.make-payment.index',compact("page_title",'makePaymentCharge','transactions'));
+        $user = userGuard()['user'];
+
+        $pricingContext = [
+            'provider' => 'internal-ledger',
+            'transaction_type' => 'make-payment',
+            'user_level' => $this->resolveUserLevel($user),
+        ];
+
+        return view('user.sections.make-payment.index',compact("page_title",'makePaymentCharge','transactions', 'pricingContext'));
     }
     public function checkUser(Request $request){
         $email = $request->email;
@@ -122,10 +131,21 @@ class MakePaymentController extends Controller
             ]);
             return back()->with(['error' => [__("Please follow the transaction limit")]]);
         }
-        //charge calculations
-        $fixedCharge = $makePaymentCharge->fixed_charge *  $rate;
-        $percent_charge = ($request->amount / 100) * $makePaymentCharge->percent_charge;
-        $total_charge = $fixedCharge + $percent_charge;
+        try {
+            $quote = $this->feeEngine->quote(
+                currency: get_default_currency_code(),
+                provider: 'internal-ledger',
+                transactionType: 'make-payment',
+                userLevel: $this->resolveUserLevel($user),
+                amount: $amount
+            );
+        } catch (PricingRuleNotFoundException $exception) {
+            return back()->with(['error' => [$exception->getMessage()]]);
+        }
+
+        $fixedCharge = $quote->fixedFee;
+        $percent_charge = $quote->percentFee;
+        $total_charge = $quote->totalFee;
         $payable = $total_charge + $amount;
         $recipient = $amount;
         if($payable > $userWallet->balance ){
@@ -444,5 +464,18 @@ class MakePaymentController extends Controller
 
         }catch(Exception $e) {}
 
+    }
+
+    protected function resolveUserLevel($user): string
+    {
+        if ($user->is_sensitive) {
+            return 'sensitive';
+        }
+
+        if ($user->kyc_verified == GlobalConst::VERIFIED) {
+            return 'verified';
+        }
+
+        return 'standard';
     }
 }

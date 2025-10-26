@@ -10,6 +10,7 @@ use App\Models\Admin\AdminLoginLogs;
 use App\Models\Admin\AdminNotification;
 use App\Providers\Admin\ExtensionProvider;
 use App\Services\Security\DeviceFingerprintService;
+use App\Services\Security\SessionBindingService;
 use App\Models\DeviceFingerprint;
 use App\Traits\Security\LogsSecurityEvents;
 use Carbon\Carbon;
@@ -78,6 +79,7 @@ class LoginController extends Controller
     protected function authenticated(Request $request, $user)
     {
         $fingerprint = app(DeviceFingerprintService::class)->register($request, $user);
+        app(SessionBindingService::class)->bind($request, $user, $fingerprint);
         $user->update([
             'two_factor_verified'   => false,
         ]);
