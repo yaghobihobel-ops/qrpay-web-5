@@ -2678,10 +2678,24 @@ function topUpExchangeRate($transaction){
 
 }
 function receiver_currency($code){
-    $receiver_currency = ExchangeRate::where(['currency_code' => $code])->first();
+    $upperCode = strtoupper($code);
+    $config = config('exchange');
+    $store = $config['cache_store'] ?? null;
+    $store = $store ?: config('cache.default');
+    $rates = \Illuminate\Support\Facades\Cache::store($store)->get('exchange:rates:all', []);
+
+    if (is_array($rates) && isset($rates[$upperCode])) {
+        return [
+            'rate' => (float) $rates[$upperCode],
+            'currency' => $upperCode,
+        ];
+    }
+
+    $receiver_currency = ExchangeRate::where(['currency_code' => $upperCode])->first();
+
     return [
         'rate' =>  $receiver_currency->rate??1,
-        'currency' =>  $receiver_currency->currency_code,
+        'currency' =>  $receiver_currency->currency_code ?? $upperCode,
     ];
 }
 function freedom_countries($type){

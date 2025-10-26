@@ -31,12 +31,7 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping();
 
         $schedule->command('currency:update')->daily();
-        $schedule->command('audit:enforce-retention')->dailyAt('01:00');
-
-        $schedule->command('keys:rotate')
-            ->cron(config('key_management.rotation.cron', '0 */6 * * *'))
-            ->withoutOverlapping()
-            ->onFailure(fn () => \Log::warning('Key rotation command failed'));
+        $schedule->command('exchange:update')->hourly();
     }
 
     /**

@@ -5,31 +5,15 @@ namespace App\Services\Exchange;
 interface ExchangeRateProviderInterface
 {
     /**
-     * Retrieve the latest exchange rates from the provider.
+     * Fetch exchange rates for the given list of symbols.
      *
-     * @return array{
-     *     status: bool,
-     *     message: string,
-     *     data: array<string, mixed>,
-     *     from_cache?: bool
-     * }
+     * @param  array<int, string>  $symbols
+     * @return array<string, float>
      */
-    public function getLiveExchangeRates(): array;
+    public function fetchRates(array $symbols): array;
 
     /**
-     * Retrieve the list of supported currencies from the provider.
-     *
-     * @return array{
-     *     status: bool,
-     *     message: string,
-     *     data: array<string, mixed>,
-     *     from_cache?: bool
-     * }
+     * Convert an amount from one currency into another.
      */
-    public function getSupportedCurrencies(): array;
-
-    /**
-     * Unique identifier of the provider (slug).
-     */
-    public function getIdentifier(): string;
+    public function convert(float $amount, string $from, string $to): float;
 }
