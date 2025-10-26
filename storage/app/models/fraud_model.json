@@ -1,0 +1,9 @@
+{
+    "weights": {
+        "transaction_amount": 0.0008,
+        "chargeback_ratio": 1.4,
+        "customer_risk_score": 2.1,
+        "velocity": 0.9
+    },
+    "bias": -3.2
+}

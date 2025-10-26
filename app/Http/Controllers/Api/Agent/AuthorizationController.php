@@ -11,18 +11,20 @@ use App\Models\AgentAuthorization;
 use App\Notifications\Agent\Auth\SendAuthorizationCode;
 use App\Notifications\Agent\Auth\SendVerifyCode;
 use App\Providers\Admin\BasicSettingsProvider;
+use App\Services\Security\DeviceFingerprintService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ControlDynamicInputFields;
+use App\Traits\Compliance\HandlesComplianceScreening;
 use Illuminate\Support\Facades\Notification;
 use Pusher\PushNotifications\PushNotifications;
 
 class AuthorizationController extends Controller
 {
-    use ControlDynamicInputFields;
+    use ControlDynamicInputFields, HandlesComplianceScreening;
 
     protected $basic_settings;
 
@@ -127,6 +129,7 @@ class AuthorizationController extends Controller
             $user->update([
                 'two_factor_verified'   => true,
             ]);
+            app(DeviceFingerprintService::class)->trustCurrent($request, $user);
             $message = ['success'=>[ __("Two factor verified successfully")]];
             return Helpers::onlySuccess($message);
         }
@@ -177,18 +180,19 @@ class AuthorizationController extends Controller
         $validated = $validated->validate();
         $get_values = $this->placeValueWithFields($user_kyc_fields, $validated);
         $create = [
-            'merchant_id'       => auth()->user()->id,
+            'agent_id'       => auth()->user()->id,
             'data'          => json_encode($get_values),
             'created_at'    => now(),
         ];
 
         DB::beginTransaction();
         try{
-            DB::table('merchant_kyc_data')->updateOrInsert(["merchant_id" => $user->id],$create);
+            DB::table('agent_kyc_data')->updateOrInsert(["agent_id" => $user->id],$create);
             $user->update([
                 'kyc_verified'  => GlobalConst::PENDING,
             ]);
             DB::commit();
+            $this->runComplianceScreening($user, $get_values);
         }catch(Exception $e) {
             DB::rollBack();
             $user->update([
