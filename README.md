@@ -52,3 +52,15 @@ npm run event-pipeline
 ```
 
 Warehouse targets are configurable through `DATA_WAREHOUSE_DRIVER` (`filesystem`, `bigquery`, `clickhouse`). Dashboard templates for Grafana and Metabase are located under `docs/analytics/`.
+
+## Airwallex operational workflow
+
+Operational access to Airwallex has been moved out of public HTTP routes. Configure your credentials in `.env` using the `AIRWALLEX_*` variables and run the secured artisan command instead of calling `/token`, `/get-holder`, or `/create-holder` directly.
+
+```bash
+php artisan airwallex token
+php artisan airwallex cardholders --filters='{"cardholder_status":"READY"}'
+php artisan airwallex create-cardholder --payload=/path/to/cardholder.json
+```
+
+The legacy routes remain available only for authenticated users in local or testing environments and require POST data when creating a cardholder. Production environments must rely on the artisan command or queued jobs to interact with Airwallex.

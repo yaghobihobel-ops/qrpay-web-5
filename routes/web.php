@@ -8,6 +8,9 @@ use App\Http\Controllers\HelpContentController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\User\AddMoneyController;
 use App\Http\Controllers\User\PaymentLinkController;
+use App\Services\Airwallex\AirwallexClient;
+use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Route;
 
 
@@ -135,142 +138,38 @@ Route::middleware(['web', 'auth', 'verification.guard'])->group(function () {
         ->name('analytics.dashboard');
 });
 
-Route::get('token',function(){
+if (app()->environment(['local', 'testing'])) {
+    Route::middleware(['web', 'auth'])->group(function () {
+        Route::get('token', function (AirwallexClient $client) {
+            return response()->json($client->authenticate());
+        });
 
-    // Define the API endpoint
-    $url = 'https://api-demo.airwallex.com/api/v1/authentication/login';
+        Route::get('get-holder', function (AirwallexClient $client) {
+            $tokenResponse = $client->authenticate();
+            $token = Arr::get($tokenResponse, 'token');
 
-    // Define the headers
-    $headers = [
-        'Content-Type: application/json',
-        'x-client-id: W_ORsgAFTiuA9k2KuqZt8A',
-        'x-api-key: 8ac97c856c6d6cae7eb8fd05511f7a165be798d032381cb8026de7b4aa9aaee2e6312a8888a3474d783a40913ab6b55d'
-    ];
+            abort_unless($token, 500, 'Unable to retrieve Airwallex token.');
 
-    // Initialize cURL
-    $curl = curl_init();
+            $filters = [
+                'cardholder_status' => 'READY',
+                'page_num' => 0,
+                'page_size' => 100,
+            ];
 
-    // Set cURL options
-    curl_setopt_array($curl, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => $headers,
-    ]);
+            return response()->json($client->listCardholders($token, $filters));
+        });
 
-    // Execute the request
-    $response = curl_exec($curl);
+        Route::post('create-holder', function (Request $request, AirwallexClient $client) {
+            $tokenResponse = $client->authenticate();
+            $token = Arr::get($tokenResponse, 'token');
 
-    // Check for errors
-    if (curl_errno($curl)) {
-        echo 'cURL Error: ' . curl_error($curl);
-    } else {
-        // Print the response
-        echo $response;
-    }
+            abort_unless($token, 500, 'Unable to retrieve Airwallex token.');
 
-    // Close the cURL session
-    curl_close($curl);
+            $payload = $request->json()->all();
 
+            abort_if(empty($payload), 422, 'Cardholder payload is required.');
 
-
-});
-Route::get('get-holder',function(){
-
-    // Define the URL and headers
-    $url = 'https://api-demo.airwallex.com/api/v1/issuing/cardholders';
-    $params = http_build_query([
-        'cardholder_status' => 'READY',
-        'page_num' => 0,
-        'page_size' => 100
-    ]);
-    $authorizationToken = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0b20iLCJyb2xlcyI6WyJ1c2VyIl0sImlhdCI6MTQ4ODQxNTI1NywiZXhwIjoxNDg4NDE1MjY3fQ.UHqau03y5kEk5lFbTp7J4a-U6LXsfxIVNEsux85hj-Q';
-
-    // Initialize cURL
-    $curl = curl_init();
-
-    // Set cURL options
-    curl_setopt_array($curl, [
-        CURLOPT_URL => $url . '?' . $params,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $authorizationToken,
-        ],
-    ]);
-
-    // Execute the request
-    $response = curl_exec($curl);
-
-    // Check for errors
-    if (curl_errno($curl)) {
-        echo 'cURL Error: ' . curl_error($curl);
-    } else {
-        // Print the response
-        echo $response;
-    }
-
-    // Close the cURL session
-    curl_close($curl);
-
-
-});
-Route::get('create-holder',function(){
-
-    // Define the URL and headers
-    $url = 'https://api-demo.airwallex.com/api/v1/issuing/cardholders/create';
-    $authorizationToken = '<your_bearer_token>'; // Replace with your actual bearer token
-
-    // Define the data payload
-    $data = [
-        "email" => "test@example.com",
-        "mobile_number" => "(257) 563-7401",
-        "type" => "INDIVIDUAL",
-        "individual" => [
-            "date_of_birth" => "1982-11-02",
-            "name" => [
-                "first_name" => "Test",
-                "last_name" => "Name"
-            ],
-            "address" => [
-                "city" => "Hong Kong",
-                "country" => "HK",
-                "line1" => "38 Chengtu Rd",
-                "postcode" => "999077",
-                "state" => "Hong Kong"
-            ],
-            "express_consent_obtained" => "yes"
-        ]
-    ];
-
-    // Initialize cURL
-    $curl = curl_init();
-
-    // Set cURL options
-    curl_setopt_array($curl, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $authorizationToken,
-            'Content-Type: application/json',
-        ],
-        CURLOPT_POSTFIELDS => json_encode($data), // Convert array to JSON
-    ]);
-
-    // Execute the request
-    $response = curl_exec($curl);
-
-    // Check for errors
-    if (curl_errno($curl)) {
-        echo 'cURL Error: ' . curl_error($curl);
-    } else {
-        // Print the response
-        echo $response;
-    }
-
-    // Close the cURL session
-    curl_close($curl);
-
-
-
-});
+            return response()->json($client->createCardholder($token, $payload));
+        });
+    });
+}
