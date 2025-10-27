@@ -1,54 +1,150 @@
+# QRPay Web Platform
 
-Immediate Older Version: 4.9.0
-Current Version: 5.0.0
+QRPay Web is a Laravel-based payment orchestration platform that powers merchant onboarding, payment link generation, agent cash-in, and settlement workflows. The application exposes management dashboards for administrators, merchants, and agents while handling integrations with multiple payment gateways and value-added services.
 
-1. Google reCAPTCHA integration added.
-2. Resolved Mobile top-up issues.
-3. Added the Hindi language.
-4. Updated Google 2FA For User & Merchant App.
-5. Added PayStack Webhook URL.
-6. Added Live Exchange Currency Rate API(Currency Layer).
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Environment Configuration](#environment-configuration)
+- [Database Setup](#database-setup)
+- [Running the Application](#running-the-application)
+- [Testing](#testing)
+- [Troubleshooting & Maintenance](#troubleshooting--maintenance)
+- [Contribution Guidelines](#contribution-guidelines)
+- [License](#license)
 
-Please Use This Commands On Your Terminal To Update Full System
-1. To Run project Please Run This Command On Your Terminal
-    composer update && composer dumpautoload && php artisan migrate:fresh --seed && php artisan passport:install --force
+## Project Overview
+QRPay centralises digital payment rails, allowing users to collect and disburse funds through cards, mobile wallets, and bank transfers. The web portal offers:
+- Marketing site and public documentation for developers.
+- Authenticated dashboards for merchants, agents, and administrators.
+- Payment link creation and hosted checkout pages.
+- Reporting and analytics through Grafana and Metabase dashboards.
 
-## Local environment requirements
+## Features
+- **Dynamic Payment Links** – Generate shareable links with configurable amounts and currencies.
+- **Multi-Gateway Integrations** – Supports Stripe, PayPal, Flutterwave, SSLCommerz, CoinGate, and more via a pluggable gateway layer.
+- **Wallet & Ledger Management** – Built-in wallet balances, add-money flows, and ledger reconciliation.
+- **Agent Network Support** – Agent-specific add money flows and tools to manage cash-in events.
+- **Developer Portal** – Interactive documentation, API references, Postman collections, and sandbox walkthroughs.
+- **Event Streaming** – Emits structured events for payments, withdrawals, and exchanges for downstream analytics pipelines.
+- **Observability Hooks** – Preconfigured health checks and telemetry output compatible with OpenTelemetry exporters.
 
-To install the PHP dependencies successfully you now need a PHP runtime that satisfies the packages bundled with Laravel Passport:
+## Architecture
+- **Framework:** Laravel 9 with Passport for API authentication.
+- **Frontend:** Blade templates enhanced with Tailwind CSS, Alpine.js, and vanilla JavaScript components.
+- **Background Processing:** Laravel Queues/Jobs for asynchronous payment callbacks and FX rate synchronization.
+- **Data Storage:** MySQL or compatible relational database for core data; Redis recommended for cache and queue backends.
+- **Telemetry:** Optional OpenTelemetry exporters for distributed tracing and metrics.
 
-- **PHP 8.1 or newer** (8.1, 8.2, 8.3, or 8.4 all work)
-- Composer 2.x
+Directory highlights:
+- `app/` – Application logic, domain services, and HTTP controllers.
+- `resources/views/` – Blade templates for dashboards, public pages, and checkout flows.
+- `routes/` – Web and API route definitions.
+- `database/` – Migrations, factories, and seeders.
+- `docs/` – Analytics dashboards, API references, and developer documentation.
 
-If you are using Laragon or another local stack make sure PHP 8.1+ is selected before running Composer. With an older PHP binary Composer will refuse to install `lcobucci/clock`, which is required by Passport.
+## Prerequisites
+Ensure the following tools are installed on your machine:
+- PHP **8.1+** with required extensions (`bcmath`, `ctype`, `fileinfo`, `json`, `mbstring`, `openssl`, `pdo`, `tokenizer`, `xml`).
+- Composer **2.x**.
+- Node.js **16+** and npm/yarn for asset builds.
+- MySQL **8.0+** or MariaDB **10.6+** for production. SQLite is sufficient for local testing.
+- Redis (optional but recommended) for queues, cache, and rate limiting.
 
-Once PHP 8.1+ is active you can bootstrap the project with:
+## Installation
+1. Clone the repository and install PHP dependencies:
+   ```bash
+   git clone https://github.com/your-org/qrpay-web.git
+   cd qrpay-web
+   composer install
+   ```
+2. Install JavaScript dependencies and compile assets:
+   ```bash
+   npm install
+   npm run build        # or npm run dev for hot reloading
+   ```
+3. Generate the application key:
+   ```bash
+   php artisan key:generate
+   ```
 
+## Environment Configuration
+Copy `.env.example` to `.env` and adjust the values to match your environment:
 ```bash
-composer install
-php artisan key:generate
+cp .env.example .env
+```
+Key variables to review:
+- `APP_URL` – Public URL used for asset generation and redirects.
+- `DB_*` – Database connection credentials.
+- `CACHE_DRIVER`, `QUEUE_CONNECTION`, `SESSION_DRIVER` – Storage backends (file, redis, database).
+- `PASSPORT_CLIENT_ID` / `PASSPORT_CLIENT_SECRET` – OAuth clients generated by `php artisan passport:install`.
+- `EVENT_STREAM_*` – Configure event streaming destinations.
+- `HEALTHCHECK_*` – Target endpoints monitored by the internal status dashboard.
+- `QRPAY_*` – Sandbox credentials for the QRPay demo checkout (client ID, secret, and base URL).
+- `MAIL_*` – Mail transport for notifications.
+- `TELEGRAM_*` / other integration secrets as applicable.
+
+After updating `.env`, cache the configuration for production deployments:
+```bash
+php artisan config:cache
 ```
 
-You can then run the existing update command (`composer update && ...`) whenever you need to refresh the installation after syncing new changes.
-### FX
-
-- Official foreign exchange providers for Iran (NIMA), China (PBOC), Turkey (TCMB) and Russia (CBR) can be configured from `config/exchange.php`. Each provider is queried in the order defined by `fallback_order`, so outages automatically fail over to the next service.
-- Refresh rates with `php artisan exchange:update`. Pass `--symbols=USD,EUR` to limit the currencies fetched or `--sync` to process without queue workers.
-- Updated rates are cached (see the `exchange.cache_store` option) and persisted for payments/withdrawals through the `SyncExchangeRates` job.
-- Run the FX integration tests with `php artisan test --group=exchange` or `php artisan test --filter=ExchangeRateIntegrationTest` to validate fallback behaviour and persistence.
-## Branch synchronization
-
-All recent pull request changes have been merged into the `main` branch so it now mirrors the reviewed updates from the feature workflows. This ensures the default branch contains the latest application improvements without requiring additional manual steps.
-
-## Event streaming & analytics
-
-The application now emits structured JSON events for payments, currency exchanges and withdrawals. Configure the broker by setting the `EVENT_STREAM_*` variables in `.env`. By default the events are written to `storage/app/event-stream/` for local inspection.
-
-Run the processing worker (Laravel Octane alternative) with Node.js to hydrate the warehouse:
-
+## Database Setup
+Run migrations and seeders to bootstrap demo data:
 ```bash
-npm install
-npm run event-pipeline
+php artisan migrate --seed
+```
+For a fresh install (useful during development or QA), run:
+```bash
+php artisan migrate:fresh --seed
+```
+Passport clients must be installed once per environment:
+```bash
+php artisan passport:install --force
 ```
 
-Warehouse targets are configurable through `DATA_WAREHOUSE_DRIVER` (`filesystem`, `bigquery`, `clickhouse`). Dashboard templates for Grafana and Metabase are located under `docs/analytics/`.
+## Running the Application
+Start the development server:
+```bash
+php artisan serve
+```
+Queue workers and schedulers should also be running to process asynchronous tasks:
+```bash
+php artisan queue:work
+php artisan schedule:work
+```
+For asset recompilation during development, run `npm run dev` in a separate terminal.
+
+## Testing
+Automated tests use PHPUnit and Laravel's test runner:
+```bash
+php artisan test
+```
+Grouping options:
+- `php artisan test --group=exchange` – Validate FX rate synchronization.
+- `php artisan test --group=gateway` – Execute payment gateway feature tests.
+
+If `vendor/bin/phpunit` is missing after a merge, reinstall dependencies with `composer install`. Ensure the lock file contains all required packages (`open-telemetry/sdk`, `open-telemetry/exporter-otlp`, etc.) before running the suite.
+
+## Troubleshooting & Maintenance
+- **Composer merge conflicts:** Run `composer update` to regenerate `composer.lock` when dependencies differ between branches.
+- **Queue backlog:** Monitor `storage/logs/laravel.log` and consider running multiple queue workers with `--tries` tuning for gateway callbacks.
+- **File uploads:** Uploaded assets are stored under `public/fileholder/img`. Ensure the directory is writable by the web server.
+- **Telemetry:** Enable OTLP exporters by populating the OpenTelemetry environment variables and running the collector.
+
+## Contribution Guidelines
+1. Fork the repository and create a feature branch (`git checkout -b feature/my-update`).
+2. Run the full automated test suite and linting (`php artisan test`, `npm run lint`).
+3. Document new behaviour in the README or `/docs` when applicable.
+4. Submit a pull request with:
+   - Summary of the change and reasoning.
+   - Testing evidence (commands run and results).
+   - Screenshots for UI updates when relevant.
+
+Please follow the existing coding standards and avoid refactoring unrelated files while addressing a specific bug or feature.
+
+## License
+This project is proprietary to QRPay. Redistribution or commercial use is subject to the organisation's licensing terms.

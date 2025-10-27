@@ -12,42 +12,54 @@ class FileController extends Controller
 {
 
     public function storeFile(Request $request) {
-        $data = [];
-        if($request->hasFile('fileholder_files')) {
-
-            $validator = Validator::make($request->all(),[
-                'fileholder_files' => 'required|mimes:'.$request->mimes,
-            ]);
-            if($validator->fails()) {
-                $data['error']  = $validator->errors()->all();
-                $data['status'] = false;
-                return response()->json($data,400);
-            }
-
-            $validated = $validator->safe()->all();
-
-            $file_holder_files = $validated['fileholder_files'];
-            $file_ext = $file_holder_files->getClientOriginalExtension();
-            $file_store_name = Str::uuid() . "." . $file_ext;
-            $data['path']   = asset('public/fileholder/img/');
-            $data['file_name']  =  $file_store_name;
-            $data['file_link']  = $data['path'] . "/" . $data['file_name'];
-            $data['file_type']  = $file_holder_files->getClientMimeType();
-            $data['file_old_name']  = $file_holder_files->getClientOriginalName();
-
-            $data['status'] = true;
-            try{
-                File::move($file_holder_files,public_path('/fileholder/img/'.$file_store_name));
-                chmod(public_path('/fileholder/img/'.$file_store_name), 0644);
-            }catch(Exception $e) {
-                return print_r($e);
-                $data['status'] = false;
-            }
-        }else {
-            $data['status'] = false;
-            $data['error'] = __("Something went wrong! Please try again.");
+        if (! $request->hasFile('fileholder_files')) {
+            return response()->json([
+                'status' => false,
+                'error' => __("Something went wrong! Please try again."),
+            ], 400);
         }
-        return response()->json($data,200);
+
+        $validator = Validator::make($request->all(), [
+            'fileholder_files' => 'required|mimes:' . $request->mimes,
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'error' => $validator->errors()->all(),
+            ], 422);
+        }
+
+        $fileHolder = $request->file('fileholder_files');
+        $fileExtension = $fileHolder->getClientOriginalExtension();
+        $storedFileName = Str::uuid() . '.' . $fileExtension;
+        $destinationPath = public_path('fileholder/img');
+
+        $responsePayload = [
+            'status' => true,
+            'path' => asset('public/fileholder/img/'),
+            'file_name' => $storedFileName,
+            'file_link' => asset('public/fileholder/img/' . $storedFileName),
+            'file_type' => $fileHolder->getClientMimeType(),
+            'file_old_name' => $fileHolder->getClientOriginalName(),
+        ];
+
+        try {
+            if (! File::isDirectory($destinationPath)) {
+                File::makeDirectory($destinationPath, 0755, true);
+            }
+            $fileHolder->move($destinationPath, $storedFileName);
+            chmod($destinationPath . '/' . $storedFileName, 0644);
+        } catch (Exception $exception) {
+            report($exception);
+
+            return response()->json([
+                'status' => false,
+                'error' => __('File upload failed. Please try again.'),
+            ], 500);
+        }
+
+        return response()->json($responsePayload, 200);
     }
 
     public function removeFile(Request $request) {
@@ -68,17 +80,18 @@ class FileController extends Controller
         $file_info = json_decode($validated['file_info']);
         $data['status'] = true;
         try {
-            FIle::delete(public_path($file_path.'/'.$file_info->file_name));
+            File::delete(public_path($file_path.'/'.$file_info->file_name));
             $data['message'] = __("File Deleted Successfully!");
         }catch(Exception $e) {
+            report($e);
             $data['status'] = false;
-            $data['error'] = $e;
+            $data['error'] = __('File deletion failed. Please try again.');
             $data['message'] = __("Something went wrong! Please try again.");
         }
 
         $data['file_info'] = $file_info;
 
-        return response()->json($data,200);
+        return response()->json($data, $data['status'] ? 200 : 500);
 
     }
 }
