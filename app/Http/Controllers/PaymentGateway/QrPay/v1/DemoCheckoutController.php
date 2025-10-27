@@ -21,12 +21,38 @@ class DemoCheckoutController extends Controller
             'secret_id' =>   "oZouVmqHCbyg6ad7iMnrwq3d8wy9Kr4bo6VpQnsX6zAOoEs4oxHPjttpun36JhGxDl7AUMz3ShUqVyPmxh4oPk3TQmDF7YvHN5M3",
         ]);
         $statusCode = $response->getStatusCode();
-        $result = json_decode($response->getBody()->getContents(),true);
+        $body = $response->getBody()->getContents();
+        $result = json_decode($body, true);
 
         if ($statusCode != 200) {
+            $errorData = is_array($result) ? $result : [];
+
+            if (empty($errorData)) {
+                report(new Exception('QRPay token response returned unexpected payload: ' . $body));
+            }
+
+            $code = data_get($errorData, 'message.code', $statusCode);
+
+            $apiMessage = data_get($errorData, 'message.error');
+            if (is_array($apiMessage)) {
+                $apiMessage = $apiMessage[0] ?? null;
+            }
+
+            if (empty($apiMessage)) {
+                $apiMessage = data_get($errorData, 'message.message')
+                    ?? data_get($errorData, 'message')
+                    ?? data_get($errorData, 'error')
+                    ?? data_get($errorData, 'errors.0');
+            }
+
+            if (empty($apiMessage)) {
+                $apiMessage = 'Access token capture failed';
+                report(new Exception('QRPay token response missing error details: ' . json_encode($errorData)));
+            }
+
             $data = [
-                'code' => $errorArray['message']['code']??400,
-                'message' => "Access token capture failed",
+                'code' => $code,
+                'message' => sprintf('HTTP %d: %s', $statusCode, $apiMessage),
                 'token' => '',
             ];
         }else{
