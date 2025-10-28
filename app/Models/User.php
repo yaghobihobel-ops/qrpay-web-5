@@ -161,19 +161,19 @@ class User extends Authenticatable
 
     public function getFeeLevel(): string
     {
-        if (->is_sensitive) {
-            return "sensitive";
+        if ((bool) ($this->is_sensitive ?? false)) {
+            return 'sensitive';
         }
 
-        if ((int) ->kyc_verified === GlobalConst::VERIFIED) {
-            return "verified";
+        if ((int) ($this->kyc_verified ?? 0) === GlobalConst::VERIFIED) {
+            return 'verified';
         }
 
-        if ((int) ->email_verified === GlobalConst::VERIFIED) {
-            return "trusted";
+        if ((int) ($this->email_verified ?? 0) === GlobalConst::VERIFIED) {
+            return 'trusted';
         }
 
-        return "standard";
+        return 'standard';
     }
 
 

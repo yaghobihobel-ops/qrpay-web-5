@@ -27,9 +27,7 @@
         "pusher/pusher-push-notifications": "^2.0",
         "srmklive/paypal": "^3.0",
         "stripe/stripe-php": "^10.3",
-        "torann/geoip": "^3.0",
-        "open-telemetry/sdk": "^1.0",
-        "open-telemetry/exporter-otlp": "^1.0"
+        "torann/geoip": "^3.0"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.7",
@@ -54,7 +52,7 @@
             "app/Http/Helpers/stripeCard.php",
             "app/Http/Helpers/strowallet-card.php",
             "app/Http/Helpers/Pagadito.php",
-            "app/Http/Helpers/Api/helpers.php"
+            "app/Http/Helpers/Api/Helpers.php"
         ]
     },
     "autoload-dev": {
@@ -84,6 +82,10 @@
         "laravel": {
             "dont-discover": []
         }
+    },
+    "suggest": {
+        "open-telemetry/sdk": "Required to enable distributed tracing support.",
+        "open-telemetry/exporter-otlp": "Install to export traces and metrics via OTLP."
     },
     "config": {
         "optimize-autoloader": true,

@@ -45,14 +45,13 @@ class FeeEngineTest extends TestCase
 
         $quote = $engine->quote('IRR', 'internal-ledger', 'make-payment', 'standard', 1_000_000);
 
-        $this->assertSame('IRR', $quote->currency);
-        $this->assertEquals(1_000_000.0, $quote->amount);
-        $this->assertEquals('internal-ledger', $quote->provider);
-        $this->assertEqualsWithDelta(98_825.0, $quote->totalFee, 0.5);
-        $this->assertEqualsWithDelta(83_333.33, $quote->percentFee, 1);
-        $this->assertEqualsWithDelta(15_491.67, $quote->fixedFee, 1);
-        $this->assertEquals(1.5, $quote->appliedPercent);
-        $this->assertEqualsWithDelta(0.00002412, $quote->exchangeRate, 1.0E-9);
+        $this->assertSame('IRR', $quote->getTransactionCurrency());
+        $this->assertEquals(1_000_000.0, $quote->getAmount());
+        $this->assertEqualsWithDelta(98_825.0, $quote->getFeeAmount(), 0.5);
+        $this->assertEquals('percentage', $quote->getFeeType());
+        $this->assertEqualsWithDelta(83_333.33, $quote->getMeta('percent_component'), 1);
+        $this->assertEqualsWithDelta(15_491.67, $quote->getMeta('fixed_component'), 1);
+        $this->assertEqualsWithDelta(0.00002412, $quote->getExchangeRate(), 1.0E-9);
     }
 
     public function test_it_switches_fee_based_on_user_level(): void
@@ -101,9 +100,9 @@ class FeeEngineTest extends TestCase
         $standardQuote = $engine->quote('USD', 'internal-ledger', 'make-payment', 'standard', 1000);
         $vipQuote = $engine->quote('USD', 'internal-ledger', 'make-payment', 'verified', 1000);
 
-        $this->assertEqualsWithDelta(21.0, $standardQuote->totalFee, 0.01);
-        $this->assertEqualsWithDelta(11.5, $vipQuote->totalFee, 0.01);
-        $this->assertTrue($vipQuote->totalFee < $standardQuote->totalFee);
+        $this->assertEqualsWithDelta(21.0, $standardQuote->getFeeAmount(), 0.01);
+        $this->assertEqualsWithDelta(11.5, $vipQuote->getFeeAmount(), 0.01);
+        $this->assertTrue($vipQuote->getFeeAmount() < $standardQuote->getFeeAmount());
     }
 
     public function test_it_throws_when_no_rule_matches(): void

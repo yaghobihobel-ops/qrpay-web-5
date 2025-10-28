@@ -54,4 +54,9 @@ abstract class AbstractProviderAdapter implements PaymentProviderAdapter
     {
         return $this->kpiMetrics;
     }
+
+    public function setAvailability(bool $available): void
+    {
+        $this->available = $available;
+    }
 }

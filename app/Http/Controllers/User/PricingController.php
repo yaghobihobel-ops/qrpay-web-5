@@ -4,7 +4,6 @@ namespace App\Http\Controllers\User;
 
 use App\Constants\GlobalConst;
 use App\Http\Controllers\Controller;
-use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
 use App\Services\Orchestration\PaymentRouter;
 use App\Services\Pricing\FeeEngine;
 use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
@@ -33,31 +32,23 @@ class PricingController extends Controller
 
         $quote = null;
         $route = null;
+        $decision = null;
 
         if ($provider === null && ! empty($validated['destination_country'])) {
-            try {
-                $result = $paymentRouter->selectRoute(
-                    $user,
-                    $currency,
-                    $amount,
-                    strtoupper($validated['destination_country']),
-                    [],
-                    [
-                        'transaction_type' => $transactionType,
-                        'user_level' => $userLevel,
-                    ]
-                );
+            $decision = $paymentRouter->selectBestRoute([
+                'currency' => $currency,
+                'amount' => $amount,
+                'destination_country' => strtoupper($validated['destination_country']),
+            ]);
 
+            if ($decision !== null) {
+                $provider = $decision['provider'];
                 $route = [
-                    'provider' => $result->getRoute()->provider,
-                    'sla' => $result->getSla(),
-                    'kpi' => $result->getKpi(),
+                    'provider' => $decision['provider'],
+                    'priority' => $decision['priority'],
+                    'fee' => $decision['fee'],
+                    'sla' => $decision['sla'],
                 ];
-
-                $provider = $route['provider'];
-                $quote = $result->getFeeQuote();
-            } catch (NoAvailablePaymentRouteException $exception) {
-                // fall back to manual provider
             }
         }
 
@@ -74,7 +65,10 @@ class PricingController extends Controller
                     provider: $provider,
                     transactionType: $transactionType,
                     userLevel: $userLevel,
-                    amount: $amount
+                    amount: $amount,
+                    options: [
+                        'metadata' => $route ? ['route_id' => $decision['route_id']] : [],
+                    ]
                 );
             } catch (PricingRuleNotFoundException $exception) {
                 return response()->json([

@@ -88,30 +88,6 @@ class PaymentGateway {
         return $manager->resolveByCurrency($currencyCode);
     }
 
-    protected function getRegionalManager(): ?RegionalPaymentManager
-    {
-        if ($this->regionalManager) {
-            return $this->regionalManager;
-        }
-
-        if (function_exists('app') && app()->bound(RegionalPaymentManager::class)) {
-            $this->regionalManager = app(RegionalPaymentManager::class);
-        }
-
-        return $this->regionalManager;
-    }
-
-    protected function resolveRegionalProvider(?string $currencyCode): ?RegionalPaymentProviderInterface
-    {
-        $manager = $this->getRegionalManager();
-
-        if (!$currencyCode || !$manager) {
-            return null;
-        }
-
-        return $manager->resolveByCurrency($currencyCode);
-    }
-
     public function gateway() {
         $request_data = $this->request_data;
         if(empty($request_data)) throw new Exception(__("Gateway Information is not available. Please provide payment gateway currency alias"));
@@ -120,14 +96,14 @@ class PaymentGateway {
 
         if(!$gateway_currency || !$gateway_currency->gateway) {
             throw ValidationException::withMessages([
-                $this->currency_input_name = __("Gateway not available"),
+                $this->currency_input_name => __("Gateway not available"),
             ]);
         }
         $defualt_currency = Currency::default();
         $user_wallet = $this->getUserWallet($defualt_currency);
         if(!$user_wallet) {
             throw ValidationException::withMessages([
-                $this->currency_input_name = __("User wallet not found!"),
+                $this->currency_input_name => __("User wallet not found!"),
             ]);
         }
 
@@ -244,7 +220,7 @@ class PaymentGateway {
         if(!$user_wallet) {
             if(request()->acceptsJson()) throw new Exception(__("User wallet not found!"));
             throw ValidationException::withMessages([
-                $this->currency_input_name = __("User wallet not found!"),
+                $this->currency_input_name => __("User wallet not found!"),
             ]);
         }
         return $user_wallet;
@@ -255,7 +231,7 @@ class PaymentGateway {
         $requested_amount = $output['amount']->requested_amount;
         if($requested_amount < ($gateway_currency->min_limit/$gateway_currency->rate) || $requested_amount > ($gateway_currency->max_limit/$gateway_currency->rate)) {
             throw ValidationException::withMessages([
-                $this->amount_input = __("Please follow the transaction limit"),
+                $this->amount_input => __("Please follow the transaction limit"),
             ]);
         }
     }

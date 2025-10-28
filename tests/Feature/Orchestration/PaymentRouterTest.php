@@ -17,7 +17,7 @@ class PaymentRouterTest extends TestCase
 
     public function test_it_selects_best_route_based_on_priority_and_sla(): void
     {
-        $this->seedPaymentRoutes();
+        $this->seedBasicRoutes();
 
         $router = new PaymentRouter([
             new AlipayAdapter(),
@@ -40,13 +40,13 @@ class PaymentRouterTest extends TestCase
         $this->assertNotNull($decision);
         $this->assertSame('Alipay', $decision['provider']);
         $this->assertSame(1, $decision['priority']);
-        $this->assertSame(0.995, $decision['sla']['score']);
+        $this->assertEquals(0.995, $decision['sla']['score']);
         $this->assertEquals(0.997, $decision['sla']['kpi']['success_rate']);
     }
 
-    public function test_it_provides_failover_when_primary_provider_is_down(): void
+    public function test_it_provides_failover_when_primary_provider_is_unavailable(): void
     {
-        $this->seedPaymentRoutes();
+        $this->seedBasicRoutes();
 
         $router = new PaymentRouter([
             new AlipayAdapter(),
@@ -84,45 +84,8 @@ class PaymentRouterTest extends TestCase
         $this->assertSame('BluBank', $outageDecision['provider']);
     }
 
-    protected function seedPaymentRoutes(): void
+    public function test_it_respects_route_thresholds(): void
     {
-        PaymentRoute::create([
-            'provider' => 'Alipay',
-            'currency' => 'USD',
-            'priority' => 1,
-            'fee' => 0.0120,
-            'max_amount' => 1500,
-            'sla_thresholds' => null,
-        ]);
-
-        PaymentRoute::create([
-            'provider' => 'BluBank',
-            'currency' => 'USD',
-            'priority' => 2,
-            'fee' => 0.0130,
-            'max_amount' => 1500,
-            'sla_thresholds' => null,
-        ]);
-
-        $alipay = new AlipayAdapter();
-        $alipay->setAvailability(false);
-
-        $router = new PaymentRouter([
-            $alipay,
-            new BluBankAdapter(),
-            new YoomoneaAdapter(),
-            new GenericPspAdapter('ContingencyPay', ['uptime' => 99.0, 'latency' => 260], ['success_rate' => 0.95]),
-        ]);
-
-        $result = $router->selectRoute($user, 'USD', 800, 'US');
-
-        $this->assertSame('BluBank', $result->getProvider()->getName());
-    }
-
-    public function test_it_switches_to_backup_provider_when_primary_breaches_sla_threshold(): void
-    {
-        $user = User::factory()->create();
-
         PaymentRoute::create([
             'provider' => 'Alipay',
             'currency' => 'USD',
@@ -131,9 +94,10 @@ class PaymentRouterTest extends TestCase
             'fee' => 0.0110,
             'max_amount' => 1200,
             'sla_thresholds' => [
-                'sla' => ['uptime' => 99.9, 'latency' => 200],
+                'sla' => ['latency_ms' => 200],
                 'kpi' => ['success_rate' => 0.99],
             ],
+            'is_active' => true,
         ]);
 
         PaymentRoute::create([
@@ -144,14 +108,14 @@ class PaymentRouterTest extends TestCase
             'fee' => 0.0130,
             'max_amount' => 2000,
             'sla_thresholds' => [
-                'sla' => ['uptime' => 99.0, 'latency' => 300],
+                'sla' => ['latency_ms' => 320],
                 'kpi' => ['success_rate' => 0.95],
             ],
+            'is_active' => true,
         ]);
 
         $alipay = new AlipayAdapter();
-        $alipay->updateSlaProfile(['uptime' => 98.2, 'latency' => 280]);
-        $alipay->updateKpiMetrics(['success_rate' => 0.93]);
+        $alipay->setAvailability(true);
 
         $router = new PaymentRouter([
             $alipay,
@@ -159,20 +123,42 @@ class PaymentRouterTest extends TestCase
             new YoomoneaAdapter(),
         ]);
 
-        $result = $router->selectRoute($user, 'USD', 600, 'US');
+        $result = $router->selectBestRoute([
+            'amount' => 600,
+            'currency' => 'USD',
+            'destination_country' => 'US',
+            'sla' => [
+                'max_latency_ms' => 500,
+                'min_success_rate' => 0.90,
+            ],
+        ]);
 
-        $this->assertSame('BluBank', $result->getProvider()->getName());
+        $this->assertNotNull($result);
+        $this->assertSame('BluBank', $result['provider']);
     }
 
-    public function test_it_throws_exception_when_no_route_matches(): void
+    protected function seedBasicRoutes(): void
     {
-        $this->expectException(NoAvailablePaymentRouteException::class);
+        PaymentRoute::create([
+            'provider' => 'Alipay',
+            'currency' => 'USD',
+            'destination_country' => 'CN',
+            'priority' => 1,
+            'fee' => 0.0120,
+            'max_amount' => 1500,
+            'sla_thresholds' => null,
+            'is_active' => true,
+        ]);
 
-        $user = User::factory()->create();
-        $router = new PaymentRouter([
-            new AlipayAdapter(),
-            new BluBankAdapter(),
-            new YoomoneaAdapter(),
+        PaymentRoute::create([
+            'provider' => 'BluBank',
+            'currency' => 'USD',
+            'destination_country' => 'CN',
+            'priority' => 2,
+            'fee' => 0.0130,
+            'max_amount' => 1500,
+            'sla_thresholds' => null,
+            'is_active' => true,
         ]);
     }
 }

@@ -4,8 +4,8 @@ namespace App\Services\Pricing;
 
 use App\Models\FeeTier;
 use App\Models\PricingRule;
-use App\Services\Pricing\DTO\FeeQuote;
 use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
+use App\Services\Pricing\FeeQuote;
 use Illuminate\Support\Collection;
 
 class FeeEngine
@@ -15,16 +15,26 @@ class FeeEngine
     ) {
     }
 
+    /**
+     * @param array<string, mixed> $options
+     */
     public function quote(
         string $currency,
         string $provider,
         string $transactionType,
         string $userLevel,
-        float $amount
+        float $amount,
+        array $options = []
     ): FeeQuote {
+        $currency = strtoupper($currency);
+        $provider = strtolower($provider);
+        $userLevel = strtolower($userLevel);
+        $transactionType = strtolower($transactionType);
+
         $rule = $this->resolveRule($currency, $provider, $transactionType, $userLevel);
 
         [$baseRate, $spreadMultiplier] = $this->resolveRate($currency, $rule);
+        $baseRate = max($baseRate, 0.00000001);
         $amountInBase = $amount * $baseRate;
 
         $tier = $this->matchTier($rule->feeTiers, $amountInBase);
@@ -33,22 +43,46 @@ class FeeEngine
         $fixedFeeAmount = (float) $tier->fixed_fee;
         $totalFeeInBase = $percentFeeAmount + $fixedFeeAmount;
 
+        $convertedPercentFee = ($percentFeeAmount / $baseRate) * $spreadMultiplier;
+        $convertedFixedFee = ($fixedFeeAmount / $baseRate) * $spreadMultiplier;
         $totalFee = ($totalFeeInBase / $baseRate) * $spreadMultiplier;
-        $fixedFee = ($fixedFeeAmount / $baseRate) * $spreadMultiplier;
-        $percentFee = ($percentFeeAmount / $baseRate) * $spreadMultiplier;
+
+        $feeType = $this->determineFeeType($percentFeeAmount, $fixedFeeAmount);
+
+        $meta = [
+            'calculation_source' => 'rule',
+            'rule_name' => $rule->name,
+            'base_currency' => strtoupper($rule->base_currency ?? $currency),
+            'spread_bps' => (float) ($rule->spread_bps ?? 0),
+            'spread_multiplier' => $spreadMultiplier,
+            'rate_value' => $baseRate,
+        ];
+
+        if (! empty($options['metadata']) && is_array($options['metadata'])) {
+            $meta = array_merge($meta, $options['metadata']);
+        }
+
+        if (! empty($options['experiment'])) {
+            $meta['experiment'] = $options['experiment'];
+        }
+
+        if (! empty($options['variant'])) {
+            $meta['variant'] = $options['variant'];
+        }
 
         return new FeeQuote(
-            currency: strtoupper($currency),
-            provider: $provider,
-            transactionType: $transactionType,
-            userLevel: $userLevel,
             amount: $amount,
-            totalFee: round($totalFee, 8),
-            fixedFee: round($fixedFee, 8),
-            percentFee: round($percentFee, 8),
-            appliedPercent: (float) $tier->percent_fee,
-            exchangeRate: $baseRate * $spreadMultiplier,
-            rule: $rule,
+            transactionCurrency: $currency,
+            feeAmount: round($totalFee, 8),
+            feeCurrency: $currency,
+            exchangeRate: round($baseRate * $spreadMultiplier, 8),
+            feeType: $feeType,
+            ruleId: $rule->getKey(),
+            tierId: $tier->getKey(),
+            meta: array_merge($meta, [
+                'percent_component' => round($convertedPercentFee, 8),
+                'fixed_component' => round($convertedFixedFee, 8),
+            ])
         );
     }
 
@@ -64,20 +98,20 @@ class FeeEngine
             })
             ->where(function ($query) use ($provider) {
                 $query->whereNull('provider')
-                    ->orWhere('provider', $provider)
+                    ->orWhereRaw('LOWER(provider) = ?', [$provider])
                     ->orWhere('provider', '*');
             })
             ->where(function ($query) use ($transactionType) {
-                $query->where('transaction_type', $transactionType)
+                $query->whereRaw('LOWER(transaction_type) = ?', [$transactionType])
                     ->orWhere('transaction_type', '*');
             })
             ->where(function ($query) use ($userLevel) {
-                $query->where('user_level', $userLevel)
+                $query->whereRaw('LOWER(user_level) = ?', [$userLevel])
                     ->orWhere('user_level', '*');
             })
-            ->orderByRaw("CASE WHEN currency = ? THEN 0 WHEN currency = '*' THEN 1 ELSE 2 END", [strtoupper($currency)])
-            ->orderByRaw("CASE WHEN provider = ? THEN 0 WHEN provider = '*' THEN 1 ELSE 2 END", [$provider])
-            ->orderByRaw("CASE WHEN user_level = ? THEN 0 WHEN user_level = '*' THEN 1 ELSE 2 END", [$userLevel])
+            ->orderByRaw("CASE WHEN LOWER(currency) = ? THEN 0 WHEN currency = '*' THEN 1 ELSE 2 END", [$currency])
+            ->orderByRaw("CASE WHEN LOWER(provider) = ? THEN 0 WHEN provider = '*' THEN 1 ELSE 2 END", [$provider])
+            ->orderByRaw("CASE WHEN LOWER(user_level) = ? THEN 0 WHEN user_level = '*' THEN 1 ELSE 2 END", [$userLevel])
             ->orderByDesc('created_at')
             ->get();
 
@@ -104,7 +138,7 @@ class FeeEngine
         $baseCurrency = strtoupper($rule->base_currency ?? $currency);
 
         $rate = $this->exchangeRateResolver->getRate($currency, $baseCurrency);
-        $spreadMultiplier = 1 + ((float) $rule->spread_bps / 10000);
+        $spreadMultiplier = 1 + ((float) ($rule->spread_bps ?? 0) / 10000);
 
         return [$rate, $spreadMultiplier];
     }
@@ -130,5 +164,18 @@ class FeeEngine
         }
 
         return $sorted->last();
+    }
+
+    protected function determineFeeType(float $percentFeeAmount, float $fixedFeeAmount): string
+    {
+        $hasPercent = $percentFeeAmount > 0;
+        $hasFixed = $fixedFeeAmount > 0;
+
+        return match (true) {
+            $hasPercent && $hasFixed => 'hybrid',
+            $hasPercent => 'percentage',
+            $hasFixed => 'flat',
+            default => 'none',
+        };
     }
 }

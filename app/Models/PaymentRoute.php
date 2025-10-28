@@ -17,10 +17,12 @@ class PaymentRoute extends Model
     protected $fillable = [
         'provider',
         'currency',
+        'destination_country',
         'priority',
         'fee',
         'max_amount',
         'sla_thresholds',
+        'is_active',
     ];
 
     /**
@@ -31,5 +33,6 @@ class PaymentRoute extends Model
         'fee' => 'float',
         'max_amount' => 'float',
         'is_active' => 'bool',
+        'sla_thresholds' => 'array',
     ];
 }
