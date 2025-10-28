@@ -387,7 +387,25 @@ class HelpContentService
 
     public function getPostmanCollectionPath(): string
     {
-        return 'docs/qrpay-api.postman_collection.json';
+        if (empty($translations)) {
+            return null;
+        }
+
+        if (array_key_exists($language, $translations) && $translations[$language] !== null && $translations[$language] !== '') {
+            return $translations[$language];
+        }
+
+        if (array_key_exists($fallback, $translations) && $translations[$fallback] !== null && $translations[$fallback] !== '') {
+            return $translations[$fallback];
+        }
+
+        foreach ($translations as $value) {
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     public function getApiOverviewVideoUrl(): string
