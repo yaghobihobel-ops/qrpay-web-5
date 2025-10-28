@@ -1,7 +1,13 @@
 {
     "name": "open-telemetry/sdk",
+    "description": "Lightweight stubs for OpenTelemetry PHP SDK interfaces used by QRPay.",
+    "type": "library",
+    "license": "Apache-2.0",
     "version": "1.0.0",
-    "type": "metapackage",
-    "description": "Local stub for OpenTelemetry SDK to satisfy offline installs.",
-    "license": "Apache-2.0"
+    "autoload": {
+        "psr-4": {
+            "OpenTelemetry\\": "src/"
+        }
+    },
+    "minimum-stability": "stable"
 }

@@ -23,6 +23,7 @@ use App\Traits\AdminNotifications\AuthNotifications;
 use App\Traits\ControlDynamicInputFields;
 use App\Services\Security\DeviceFingerprintService;
 use App\Traits\Security\LogsSecurityEvents;
+
 class LoginController extends Controller
 {
     use  LoggedInUsers ,RegisteredUsers,ControlDynamicInputFields,AuthNotifications, LogsSecurityEvents;

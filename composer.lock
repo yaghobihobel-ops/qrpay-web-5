@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1769854bedf8ac318c4de35ed5fac9f9",
+    "content-hash": "4264c3d011285d7ae1f2784a2ed17680",
     "packages": [
         {
             "name": "brick/math",
@@ -4367,14 +4367,18 @@
             "dist": {
                 "type": "path",
                 "url": "packages/open-telemetry/exporter-otlp",
-                "reference": "fb89184a488b2c3e2ed3de8e3c007c303b6c4741"
+                "reference": "e7d6ad591d4f7b649b422c5f4af6f93ab8d197fc"
+            },
+            "require": {
+                "open-telemetry/sdk": "^1.0"
             },
             "type": "metapackage",
             "license": [
                 "Apache-2.0"
             ],
-            "description": "Local stub for OpenTelemetry OTLP exporter to satisfy offline installs.",
+            "description": "Stub OTLP exporter package satisfied by the local telemetry shim.",
             "transport-options": {
+                "symlink": false,
                 "relative": true
             }
         },
@@ -4384,14 +4388,20 @@
             "dist": {
                 "type": "path",
                 "url": "packages/open-telemetry/sdk",
-                "reference": "25628312a0791a6f1b9046c215ec7aebe0194db7"
+                "reference": "039885fb3f65ce693e2d2a04256eb383a51686f5"
             },
-            "type": "metapackage",
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "OpenTelemetry\\": "src/"
+                }
+            },
             "license": [
                 "Apache-2.0"
             ],
-            "description": "Local stub for OpenTelemetry SDK to satisfy offline installs.",
+            "description": "Lightweight stubs for OpenTelemetry PHP SDK interfaces used by QRPay.",
             "transport-options": {
+                "symlink": false,
                 "relative": true
             }
         },

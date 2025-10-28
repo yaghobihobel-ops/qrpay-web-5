@@ -63,7 +63,8 @@
             "app/Http/Helpers/sudo-card.php",
             "app/Http/Helpers/stripeCard.php",
             "app/Http/Helpers/strowallet-card.php",
-            "app/Http/Helpers/Pagadito.php"
+            "app/Http/Helpers/Pagadito.php",
+            "app/Http/Helpers/Api/Helpers.php"
         ]
     },
     "autoload-dev": {
@@ -94,6 +95,22 @@
             "dont-discover": []
         }
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/open-telemetry/sdk",
+            "options": {
+                "symlink": false
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/open-telemetry/exporter-otlp",
+            "options": {
+                "symlink": false
+            }
+        }
+    ],
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",
