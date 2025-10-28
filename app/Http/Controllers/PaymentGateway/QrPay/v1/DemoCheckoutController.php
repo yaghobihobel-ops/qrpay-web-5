@@ -24,6 +24,44 @@ class DemoCheckoutController extends Controller
             return (object) [
                 'code' => 500,
                 'message' => __('QRPay credentials are not configured.'),
+        $base_url = "https://qrpay.appdevs.net/pay/sandbox/api/v1";
+        $response = Http::post($base_url .'/authentication/token', [
+            'client_id' => "tRCDXCuztQzRYThPwlh1KXAYm4bG3rwWjbxM2R63kTefrGD2B9jNn6JnarDf7ycxdzfnaroxcyr5cnduY6AqpulRSebwHwRmGerA",
+            'secret_id' =>   "oZouVmqHCbyg6ad7iMnrwq3d8wy9Kr4bo6VpQnsX6zAOoEs4oxHPjttpun36JhGxDl7AUMz3ShUqVyPmxh4oPk3TQmDF7YvHN5M3",
+        ]);
+        $statusCode = $response->getStatusCode();
+        $body = $response->getBody()->getContents();
+        $result = json_decode($body, true);
+
+        if ($statusCode != 200) {
+            $errorData = is_array($result) ? $result : [];
+
+            if (empty($errorData)) {
+                report(new Exception('QRPay token response returned unexpected payload: ' . $body));
+            }
+
+            $code = data_get($errorData, 'message.code', $statusCode);
+
+            $apiMessage = data_get($errorData, 'message.error');
+            if (is_array($apiMessage)) {
+                $apiMessage = $apiMessage[0] ?? null;
+            }
+
+            if (empty($apiMessage)) {
+                $apiMessage = data_get($errorData, 'message.message')
+                    ?? data_get($errorData, 'message')
+                    ?? data_get($errorData, 'error')
+                    ?? data_get($errorData, 'errors.0');
+            }
+
+            if (empty($apiMessage)) {
+                $apiMessage = 'Access token capture failed';
+                report(new Exception('QRPay token response missing error details: ' . json_encode($errorData)));
+            }
+
+            $data = [
+                'code' => $code,
+                'message' => sprintf('HTTP %d: %s', $statusCode, $apiMessage),
                 'token' => '',
             ];
         }
