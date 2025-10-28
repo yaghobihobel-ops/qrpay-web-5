@@ -1824,73 +1824,6 @@
             "time": "2024-12-04T17:51:49+00:00"
         },
         {
-            "name": "laravel/horizon",
-            "version": "v5.22.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/laravel/horizon.git",
-                "reference": "v5.22.0"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/laravel/horizon/zipball/v5.22.0",
-                "reference": "v5.22.0",
-                "shasum": ""
-            },
-            "require": {
-                "illuminate/bus": "^8.0|^9.0|^10.0|^11.0",
-                "illuminate/console": "^8.0|^9.0|^10.0|^11.0",
-                "illuminate/contracts": "^8.0|^9.0|^10.0|^11.0",
-                "illuminate/queue": "^8.0|^9.0|^10.0|^11.0",
-                "illuminate/support": "^8.0|^9.0|^10.0|^11.0",
-                "illuminate/view": "^8.0|^9.0|^10.0|^11.0",
-                "nesbot/carbon": "^2.62",
-                "php": "^8.0",
-                "symfony/process": "^5.4|^6.0"
-            },
-            "require-dev": {
-                "mockery/mockery": "^1.5",
-                "nunomaduro/collision": "^6.4",
-                "orchestra/testbench": "^7.0|^8.0|^9.0|^10.0",
-                "phpunit/phpunit": "^9.5|^10.0"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Laravel\\Horizon\\HorizonServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Laravel\\Horizon\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Taylor Otwell",
-                    "email": "taylor@laravel.com"
-                }
-            ],
-            "description": "Dashboard and code-driven configuration for Laravel queues.",
-            "keywords": [
-                "dashboard",
-                "horizon",
-                "laravel",
-                "queues"
-            ],
-            "support": {
-                "issues": "https://github.com/laravel/horizon/issues",
-                "source": "https://github.com/laravel/horizon/tree/v5.22.0"
-            },
-            "time": "2024-08-01T00:00:00+00:00"
-        },
-        {
             "name": "laravel/framework",
             "version": "v9.52.18",
             "source": {
@@ -2144,6 +2077,73 @@
                 "source": "https://github.com/laravel/helpers/tree/v1.7.1"
             },
             "time": "2024-11-26T14:56:25+00:00"
+        },
+        {
+            "name": "laravel/horizon",
+            "version": "v5.22.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/laravel/horizon.git",
+                "reference": "v5.22.0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/laravel/horizon/zipball/v5.22.0",
+                "reference": "v5.22.0",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/bus": "^8.0|^9.0|^10.0|^11.0",
+                "illuminate/console": "^8.0|^9.0|^10.0|^11.0",
+                "illuminate/contracts": "^8.0|^9.0|^10.0|^11.0",
+                "illuminate/queue": "^8.0|^9.0|^10.0|^11.0",
+                "illuminate/support": "^8.0|^9.0|^10.0|^11.0",
+                "illuminate/view": "^8.0|^9.0|^10.0|^11.0",
+                "nesbot/carbon": "^2.62",
+                "php": "^8.0",
+                "symfony/process": "^5.4|^6.0"
+            },
+            "require-dev": {
+                "mockery/mockery": "^1.5",
+                "nunomaduro/collision": "^6.4",
+                "orchestra/testbench": "^7.0|^8.0|^9.0|^10.0",
+                "phpunit/phpunit": "^9.5|^10.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Laravel\\Horizon\\HorizonServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Laravel\\Horizon\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Taylor Otwell",
+                    "email": "taylor@laravel.com"
+                }
+            ],
+            "description": "Dashboard and code-driven configuration for Laravel queues.",
+            "keywords": [
+                "dashboard",
+                "horizon",
+                "laravel",
+                "queues"
+            ],
+            "support": {
+                "issues": "https://github.com/laravel/horizon/issues",
+                "source": "https://github.com/laravel/horizon/tree/v5.22.0"
+            },
+            "time": "2024-08-01T00:00:00+00:00"
         },
         {
             "name": "laravel/passport",
@@ -4360,6 +4360,50 @@
                 }
             ],
             "time": "2024-09-09T07:06:30+00:00"
+        },
+        {
+            "name": "open-telemetry/exporter-otlp",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/open-telemetry/exporter-otlp",
+                "reference": "e7d6ad591d4f7b649b422c5f4af6f93ab8d197fc"
+            },
+            "require": {
+                "open-telemetry/sdk": "^1.0"
+            },
+            "type": "metapackage",
+            "license": [
+                "Apache-2.0"
+            ],
+            "description": "Stub OTLP exporter package satisfied by the local telemetry shim.",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "open-telemetry/sdk",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/open-telemetry/sdk",
+                "reference": "039885fb3f65ce693e2d2a04256eb383a51686f5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "OpenTelemetry\\": "src/"
+                }
+            },
+            "license": [
+                "Apache-2.0"
+            ],
+            "description": "Lightweight stubs for OpenTelemetry PHP SDK interfaces used by QRPay.",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
         },
         {
             "name": "paragonie/constant_time_encoding",
@@ -11430,6 +11474,6 @@
     "platform": {
         "php": "^8.1"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
 }

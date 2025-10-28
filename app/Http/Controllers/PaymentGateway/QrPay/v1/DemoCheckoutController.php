@@ -4,10 +4,12 @@ namespace App\Http\Controllers\PaymentGateway\QrPay\v1;
 
 use App\Http\Controllers\Controller;
 use Exception;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\View\View;
 
 class DemoCheckoutController extends Controller
 {
@@ -45,17 +47,19 @@ class DemoCheckoutController extends Controller
             ];
         }
 
-        $statusCode = $response->getStatusCode();
-        $result = $response->json();
+        if (!$response->successful()) {
+            $payload = $response->json();
+            $status = $response->status();
 
-        if ($statusCode !== 200) {
-            $message = data_get($result, 'message.error.0')
-                ?? data_get($result, 'message')
+            $message = data_get($payload, 'message.error.0')
+                ?? data_get($payload, 'message.message')
+                ?? data_get($payload, 'message')
+                ?? data_get($payload, 'error')
                 ?? __('Access token capture failed.');
 
             Log::warning('QRPay access token request failed.', [
-                'status' => $statusCode,
-                'response' => $result,
+                'status' => $status,
+                'response' => $payload,
             ]);
 
             return (object) [
@@ -65,10 +69,12 @@ class DemoCheckoutController extends Controller
             ];
         }
 
+        $payload = $response->json();
+
         return (object) [
-            'code' => data_get($result, 'message.code', 200),
-            'message' => data_get($result, 'type', 'success'),
-            'token' => data_get($result, 'data.access_token', ''),
+            'code' => data_get($payload, 'message.code', 200),
+            'message' => data_get($payload, 'type', 'success'),
+            'token' => data_get($payload, 'data.access_token', ''),
         ];
     }
 

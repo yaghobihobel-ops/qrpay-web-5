@@ -3,7 +3,13 @@
 namespace App\Services\Orchestration;
 
 use App\Models\PaymentRoute;
+use App\Models\User;
 use App\Services\Orchestration\Contracts\PaymentProviderAdapter;
+use App\Services\Orchestration\DTO\PaymentRouteResult;
+use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
+use App\Services\Pricing\DTO\FeeQuote;
+use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
+use App\Services\Pricing\FeeEngine;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
@@ -14,16 +20,23 @@ class PaymentRouter
      */
     protected array $adapters = [];
 
-    /**
-     * @param iterable<int, PaymentProviderAdapter> $adapters
-     */
-    public function __construct(iterable $adapters)
+    public function __construct(iterable $adapters = [], protected ?FeeEngine $feeEngine = null)
     {
         foreach ($adapters as $adapter) {
             if ($adapter instanceof PaymentProviderAdapter) {
                 $this->adapters[strtolower($adapter->getName())] = $adapter;
             }
         }
+    }
+
+    public function registerAdapter(PaymentProviderAdapter $adapter): void
+    {
+        $this->adapters[strtolower($adapter->getName())] = $adapter;
+    }
+
+    public function setFeeEngine(?FeeEngine $feeEngine): void
+    {
+        $this->feeEngine = $feeEngine;
     }
 
     /**
@@ -67,6 +80,10 @@ class PaymentRouter
             return isset($this->adapters[strtolower($route->provider)]);
         })->values();
 
+        if ($routes->isEmpty()) {
+            return null;
+        }
+
         $routes = $this->sortRoutes($routes, $preferred);
 
         foreach ($routes as $route) {
@@ -92,8 +109,8 @@ class PaymentRouter
                 continue;
             }
 
-            return $this->formatDecision($route, $adapter);
-        }
+            $slaProfile = array_merge(['score' => $adapter->getSlaScore()], $adapter->getKpiMetrics());
+            $kpiMetrics = $adapter->getKpiMetrics();
 
         return null;
     }
@@ -108,7 +125,20 @@ class PaymentRouter
             [$failedProvider]
         );
 
-        return $this->selectBestRoute($context);
+    protected function formatDecision(PaymentRoute $route, PaymentProviderAdapter $adapter): array
+    {
+        return [
+            'route_id' => $route->id,
+            'provider' => $route->provider,
+            'priority' => (int) $route->priority,
+            'fee' => (float) $route->fee,
+            'currency' => $route->currency,
+            'destination_country' => $route->destination_country,
+            'sla' => [
+                'score' => $adapter->getSlaScore(),
+                'kpi' => $adapter->getKpiMetrics(),
+            ],
+        ];
     }
 
     /**
@@ -225,5 +255,18 @@ class PaymentRouter
                 'kpi' => $adapter->getKpiMetrics(),
             ],
         ];
+    }
+
+    private function normalizeAmount(mixed $amount): ?float
+    {
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        if (is_numeric($amount)) {
+            return (float) $amount;
+        }
+
+        return null;
     }
 }
