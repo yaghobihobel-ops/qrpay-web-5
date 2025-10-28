@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         \App\Console\Commands\DispatchAnalyticsEvent::class,
         \App\Console\Commands\RotateApiKeys::class,
+        \App\Console\Commands\AirwallexOperations::class,
     ];
 
     /**
