@@ -88,31 +88,6 @@ class PaymentRouter
         return null;
     }
 
-    private function passesPolicies(
-        PaymentProviderAdapterInterface $provider,
-        PaymentRoute $route,
-        array $slaProfile,
-        array $kpiMetrics,
-        User $user,
-        float $amount,
-        string $currency,
-        string $destinationCountry,
-        array $slaPolicies
-    ): bool {
-        if (! $this->passesRouteThresholds($route, $slaProfile, $kpiMetrics)) {
-            return false;
-        }
-
-        foreach ($slaPolicies as $policy) {
-            if (!\is_callable($policy)) {
-                continue;
-            }
-
-        $context['excluded_providers'] = array_values(array_unique($excluded));
-
-        return $this->selectBestRoute($context);
-    }
-
     /**
      * @param Collection<int, PaymentRoute> $routes
      * @param array<int, string> $preferred
