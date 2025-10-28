@@ -3,8 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\FeeTier;
-use App\Models\PricingRule;
+use App\Models\Pricing\FeeTier;
 use App\Models\Pricing\PricingRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

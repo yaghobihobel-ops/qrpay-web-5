@@ -23,7 +23,6 @@ use App\Traits\AdminNotifications\AuthNotifications;
 use App\Traits\ControlDynamicInputFields;
 use App\Services\Security\DeviceFingerprintService;
 use App\Traits\Security\LogsSecurityEvents;
-use Illuminate\Support\Facades\RateLimiter;
 
 class LoginController extends Controller
 {

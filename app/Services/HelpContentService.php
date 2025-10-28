@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\Yaml\Exception\ParseException;
@@ -163,9 +164,21 @@ class HelpContentService
         ],
     ];
 
+    protected string $basePath;
+
+    protected string $manifestPath;
+
+    protected ?array $manifestCache = null;
+
+    public function __construct(?string $basePath = null, ?string $manifestPath = null)
+    {
+        $this->basePath = $basePath ?? resource_path('docs/help');
+        $this->manifestPath = $manifestPath ?? $this->basePath . DIRECTORY_SEPARATOR . 'manifest.json';
+    }
+
     public function getApiCategories(?string $query = null): array
     {
-        $normalizedQuery = $query ? Str::lower($query) : null;
+        $normalizedQuery = $query ? Str::lower(trim($query)) : null;
 
         return collect($this->apiCategories)
             ->map(function (array $category) {
@@ -179,8 +192,8 @@ class HelpContentService
 
                 $keywords = $category['title'] . ' ' . ($category['description'] ?? '') . ' ' . $endpointText . ' ' . $faqText;
 
-                $category['keywords'] = Str::lower(preg_replace('/\s+/', ' ', trim($keywords)));
-                $category['matched_faqs'] = $category['faqs'];
+                $category['keywords'] = Str::lower(preg_replace('/\s+/', ' ', trim($keywords)) ?? '');
+                $category['matched_faqs'] = $category['faqs'] ?? [];
 
                 return $category;
             })
@@ -196,14 +209,27 @@ class HelpContentService
                     return $category;
                 }
 
+                $matchedFaqs = collect($category['faqs'] ?? [])->filter(function ($faq) use ($normalizedQuery) {
+                    $haystack = Str::lower((($faq['question'] ?? '') . ' ' . ($faq['answer'] ?? '')));
+
+                    return Str::contains($haystack, $normalizedQuery);
+                })->values()->all();
+
+                $category['matched_faqs'] = $matchedFaqs ?: ($category['faqs'] ?? []);
+
+                return $category;
+            })
+            ->values()
+            ->all();
+    }
+
     public function getSections(?string $language = null, ?string $query = null): array
     {
         $manifest = $this->manifest();
         $defaultLanguage = $manifest['default_language'] ?? 'en';
-
         $query = $query ? Str::lower(trim($query)) : null;
 
-        return collect($manifest['sections'])
+        return collect($manifest['sections'] ?? [])
             ->filter(function (array $section) use ($language, $defaultLanguage, $query) {
                 if (!$query) {
                     return true;
@@ -211,6 +237,7 @@ class HelpContentService
 
                 $sectionDefault = $section['default_language'] ?? $defaultLanguage;
                 $resolvedLanguage = $language ?? $sectionDefault;
+
                 $haystack = Str::lower(implode(' ', array_filter([
                     $this->translateField($section['title'] ?? [], $resolvedLanguage, $sectionDefault),
                     $this->translateField($section['summary'] ?? [], $resolvedLanguage, $sectionDefault),
@@ -225,7 +252,27 @@ class HelpContentService
                 $resolvedLanguage = $language ?? $sectionDefault;
                 $latest = $this->resolveLatestVersion($section);
 
-                return $category;
+                $faqs = collect($latest['faqs'] ?? [])->map(function (array $faq) use ($resolvedLanguage, $sectionDefault) {
+                    return [
+                        'id' => $faq['id'] ?? null,
+                        'question' => $this->translateField($faq['question'] ?? [], $resolvedLanguage, $sectionDefault),
+                        'anchor' => $faq['anchor'] ?? null,
+                    ];
+                })->values()->all();
+
+                return [
+                    'id' => $section['id'] ?? null,
+                    'title' => $this->translateField($section['title'] ?? [], $resolvedLanguage, $sectionDefault),
+                    'summary' => $this->translateField($section['summary'] ?? [], $resolvedLanguage, $sectionDefault),
+                    'category' => $section['category'] ?? null,
+                    'tags' => $section['tags'] ?? [],
+                    'default_language' => $sectionDefault,
+                    'language' => $resolvedLanguage,
+                    'available_languages' => array_keys($latest['languages'] ?? []),
+                    'version' => $latest['version'] ?? null,
+                    'released_at' => $latest['released_at'] ?? null,
+                    'faqs' => $faqs,
+                ];
             })
             ->values()
             ->all();
@@ -236,7 +283,7 @@ class HelpContentService
         $manifest = $this->manifest();
         $defaultLanguage = $manifest['default_language'] ?? 'en';
 
-        $section = collect($manifest['sections'])->firstWhere('id', $sectionId);
+        $section = collect($manifest['sections'] ?? [])->firstWhere('id', $sectionId);
 
         if (!$section) {
             return null;
@@ -275,7 +322,7 @@ class HelpContentService
 
         $faqs = collect($versionData['faqs'] ?? [])->map(function (array $faq) use ($targetLanguage, $sectionDefault) {
             return [
-                'id' => $faq['id'],
+                'id' => $faq['id'] ?? null,
                 'question' => $this->translateField($faq['question'] ?? [], $targetLanguage, $sectionDefault),
                 'anchor' => $faq['anchor'] ?? null,
             ];
@@ -283,7 +330,7 @@ class HelpContentService
 
         return [
             'section' => [
-                'id' => $section['id'],
+                'id' => $section['id'] ?? null,
                 'title' => $this->translateField($section['title'] ?? [], $targetLanguage, $sectionDefault),
                 'summary' => $this->translateField($section['summary'] ?? [], $targetLanguage, $sectionDefault),
                 'category' => $section['category'] ?? null,
@@ -305,7 +352,7 @@ class HelpContentService
     {
         $manifest = $this->manifest();
         $defaultLanguage = $manifest['default_language'] ?? 'en';
-        $section = collect($manifest['sections'])->firstWhere('id', $sectionId);
+        $section = collect($manifest['sections'] ?? [])->firstWhere('id', $sectionId);
 
         if (!$section) {
             return null;
@@ -331,7 +378,7 @@ class HelpContentService
         return null;
     }
 
-    protected function translateField(array $translations, string $language, string $fallback): ?string
+    public function getPostmanCollectionPath(): string
     {
         return 'docs/qrpay-api.postman_collection.json';
     }
@@ -339,6 +386,115 @@ class HelpContentService
     public function getApiOverviewVideoUrl(): string
     {
         return 'https://www.youtube.com/embed/ysz5S6PUM-U';
+    }
+
+    protected function manifest(): array
+    {
+        if ($this->manifestCache !== null) {
+            return $this->manifestCache;
+        }
+
+        if (!File::exists($this->manifestPath)) {
+            throw new RuntimeException('Help center manifest file could not be located.');
+        }
+
+        $contents = File::get($this->manifestPath);
+
+        try {
+            $decoded = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new RuntimeException('The help center manifest file is not valid JSON: ' . $exception->getMessage(), 0, $exception);
+        }
+
+        if (!is_array($decoded)) {
+            throw new RuntimeException('The help center manifest must decode into an array.');
+        }
+
+        return $this->manifestCache = $decoded;
+    }
+
+    protected function resolveLatestVersion(array $section): array
+    {
+        $versions = collect($section['versions'] ?? [])
+            ->filter(fn ($version) => is_array($version));
+
+        if ($versions->isEmpty()) {
+            return [];
+        }
+
+        return $versions
+            ->sort(function (array $a, array $b) {
+                $aDate = $a['released_at'] ?? null;
+                $bDate = $b['released_at'] ?? null;
+
+                if ($aDate && $bDate && $aDate !== $bDate) {
+                    return strcmp($bDate, $aDate);
+                }
+
+                return version_compare((string) ($b['version'] ?? '0.0.0'), (string) ($a['version'] ?? '0.0.0'));
+            })
+            ->first() ?? [];
+    }
+
+    protected function resolveVersion(array $section, ?string $version, string $language, string $defaultLanguage): ?array
+    {
+        $versions = collect($section['versions'] ?? [])
+            ->filter(fn ($entry) => is_array($entry));
+
+        if ($versions->isEmpty()) {
+            return null;
+        }
+
+        if ($version) {
+            $match = $versions->first(function (array $entry) use ($version) {
+                return ($entry['version'] ?? null) === $version;
+            });
+
+            if ($match) {
+                return $match;
+            }
+        }
+
+        $languageMatch = $versions->first(function (array $entry) use ($language) {
+            return isset($entry['languages'][$language]);
+        });
+
+        if ($languageMatch) {
+            return $languageMatch;
+        }
+
+        $defaultMatch = $versions->first(function (array $entry) use ($defaultLanguage) {
+            return isset($entry['languages'][$defaultLanguage]);
+        });
+
+        if ($defaultMatch) {
+            return $defaultMatch;
+        }
+
+        return $this->resolveLatestVersion($section) ?: null;
+    }
+
+    protected function translateField(array|string|null $translations, string $language, string $fallback): ?string
+    {
+        if (is_string($translations)) {
+            return $translations;
+        }
+
+        if (!is_array($translations) || empty($translations)) {
+            return null;
+        }
+
+        if (!empty($translations[$language])) {
+            return (string) $translations[$language];
+        }
+
+        if (!empty($translations[$fallback])) {
+            return (string) $translations[$fallback];
+        }
+
+        $first = reset($translations);
+
+        return $first !== false ? (string) $first : null;
     }
 
     protected function parseDocument(string $raw): array
@@ -385,11 +541,13 @@ class HelpContentService
                 if (!is_array($step)) {
                     continue;
                 }
-                $steps[] = $this->normalizeStep($step, $index);
+
+                $steps[] = $this->normalizeStep($step, (int) $index);
             }
         }
 
         $mediaSources = $frontMatter['media'] ?? ($frontMatter['resources']['media'] ?? []);
+
         if ($mediaSources) {
             $media = $this->normalizeMediaCollection($mediaSources);
         }
@@ -426,7 +584,7 @@ class HelpContentService
         ];
     }
 
-    protected function normalizeMediaCollection($media): array
+    protected function normalizeMediaCollection(mixed $media): array
     {
         if (is_string($media)) {
             $media = [['url' => $media]];
