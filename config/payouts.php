@@ -10,7 +10,6 @@ return [
         'blubank' => filter_var(env('FEATURE_PAYOUTS_BLUBANK', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
         'sandbox' => filter_var(env('FEATURE_PAYOUTS_SANDBOX', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true,
     ],
-
     'countries' => [
         'CN' => [
             'currency' => 'CNY',

@@ -38,11 +38,9 @@ class PaymentRouter
     }
 
     /**
-     * Analyze the given context and select the best payment route available.
+     * Determine the best payment route given the supplied context.
      *
      * @param array<string, mixed> $context
-     *
-     * @return array<string, mixed>|null
      */
     public function selectBestRoute(array $context): ?array
     {
@@ -53,17 +51,20 @@ class PaymentRouter
         $excluded = array_map('strtolower', (array) ($context['excluded_providers'] ?? []));
         $preferred = array_map('strtolower', (array) ($context['preferred_providers'] ?? []));
 
-        if ($currency === '' || $destinationCountry === '') {
-            return null;
+        $routesQuery = PaymentRoute::query()->where('is_active', true);
+
+        if ($currency !== '') {
+            $routesQuery->where('currency', $currency);
         }
 
-        /** @var Collection<int, PaymentRoute> $routes */
-        $routes = PaymentRoute::query()
-            ->where('currency', $currency)
-            ->where('destination_country', $destinationCountry)
-            ->where('is_active', true)
-            ->orderBy('priority')
-            ->get();
+        if ($destinationCountry !== '') {
+            $routesQuery->where(function ($builder) use ($destinationCountry) {
+                $builder->whereNull('destination_country')
+                    ->orWhere('destination_country', $destinationCountry);
+            });
+        }
+
+        $routes = $routesQuery->orderBy('priority')->get();
 
         $routes = $routes->filter(function (PaymentRoute $route) use ($amount, $excluded) {
             if (in_array(strtolower($route->provider), $excluded, true)) {
@@ -74,7 +75,17 @@ class PaymentRouter
                 return false;
             }
 
-            return isset($this->adapters[strtolower($route->provider)]);
+            $adapter = $this->adapters[strtolower($route->provider)] ?? null;
+
+            if (!$adapter) {
+                return false;
+            }
+
+            if ($currency === '' && $destinationCountry === '') {
+                return true;
+            }
+
+            return $adapter->supports($currency ?: $route->currency, $destinationCountry ?: ($route->destination_country ?? ''));
         })->values();
 
         if ($routes->isEmpty()) {
@@ -94,14 +105,7 @@ class PaymentRouter
                 continue;
             }
 
-            if (!$adapter->isAvailable($context)) {
-                continue;
-            }
-
-            $slaProfile = array_merge(['score' => $adapter->getSlaScore()], $adapter->getKpiMetrics());
-            $kpiMetrics = $adapter->getKpiMetrics();
-
-            if (!$this->passesRouteThresholds($route, $slaProfile, $kpiMetrics)) {
+            if (!$this->passesRouteThresholds($route, $adapter)) {
                 continue;
             }
 
@@ -109,10 +113,42 @@ class PaymentRouter
                 continue;
             }
 
+            $slaProfile = array_merge(['score' => $adapter->getSlaScore()], $adapter->getKpiMetrics());
+            $kpiMetrics = $adapter->getKpiMetrics();
+
+        return null;
+    }
+
+    /**
+     * Attempt to select a failover route when the given provider is unhealthy.
+     *
+     * @param array<string, mixed> $context
+     */
+    public function getFailoverRoute(array $context, string $failedProvider): ?array
+    {
+        $excluded = array_map('strtolower', (array) ($context['excluded_providers'] ?? []));
+        $excluded[] = strtolower($failedProvider);
+
             return $this->formatDecision($route, $adapter);
         }
 
         return null;
+    }
+
+    protected function formatDecision(PaymentRoute $route, PaymentProviderAdapter $adapter): array
+    {
+        return [
+            'route_id' => $route->id,
+            'provider' => $route->provider,
+            'priority' => (int) $route->priority,
+            'fee' => (float) $route->fee,
+            'currency' => $route->currency,
+            'destination_country' => $route->destination_country,
+            'sla' => [
+                'score' => $adapter->getSlaScore(),
+                'kpi' => $adapter->getKpiMetrics(),
+            ],
+        ];
     }
 
     /**
@@ -162,7 +198,7 @@ class PaymentRouter
         return true;
     }
 
-    private function passesRouteThresholds(PaymentRoute $route, array $slaProfile, array $kpiMetrics): bool
+    protected function passesRouteThresholds(PaymentRoute $route, PaymentProviderAdapter $adapter): bool
     {
         $thresholds = $route->sla_thresholds;
 
@@ -170,24 +206,29 @@ class PaymentRouter
             return true;
         }
 
+        $metrics = $this->normaliseMetrics(array_merge(
+            ['sla_score' => $adapter->getSlaScore()],
+            $adapter->getKpiMetrics()
+        ));
+
         $normalised = $this->normaliseThresholds($thresholds);
 
         foreach ($normalised['sla'] as $metric => $threshold) {
-            if (!array_key_exists($metric, $slaProfile)) {
+            if (!array_key_exists($metric, $metrics)) {
                 return false;
             }
 
-            if (!$this->compareMetric($metric, (float) $slaProfile[$metric], $threshold)) {
+            if (!$this->compareMetric($metric, $metrics[$metric], $threshold)) {
                 return false;
             }
         }
 
         foreach ($normalised['kpi'] as $metric => $threshold) {
-            if (!array_key_exists($metric, $kpiMetrics)) {
+            if (!array_key_exists($metric, $metrics)) {
                 return false;
             }
 
-            if (!$this->compareMetric($metric, (float) $kpiMetrics[$metric], $threshold)) {
+            if (!$this->compareMetric($metric, $metrics[$metric], $threshold)) {
                 return false;
             }
         }
@@ -240,6 +281,21 @@ class PaymentRouter
         return $flattened;
     }
 
+    private function normaliseMetrics(array $metrics): array
+    {
+        $normalised = [];
+
+        foreach ($metrics as $metric => $value) {
+            if (!is_numeric($value)) {
+                continue;
+            }
+
+            $normalised[$this->normaliseMetricName((string) $metric)] = (float) $value;
+        }
+
+        return $normalised;
+    }
+
     private function compareMetric(string $metric, float $actual, float $threshold): bool
     {
         if ($this->isLowerBetterMetric($metric)) {
@@ -285,29 +341,6 @@ class PaymentRouter
             return (float) $amount;
         }
 
-        if (is_string($amount)) {
-            $normalized = preg_replace('/[^0-9.\-]/', '', $amount);
-
-            return is_numeric($normalized) ? (float) $normalized : null;
-        }
-
         return null;
-    }
-
-    protected function formatDecision(PaymentRoute $route, PaymentProviderAdapter $adapter): array
-    {
-        return [
-            'route_id' => $route->id,
-            'provider' => $route->provider,
-            'priority' => $route->priority,
-            'fee' => $route->fee,
-            'max_amount' => $route->max_amount,
-            'currency' => $route->currency,
-            'destination_country' => $route->destination_country,
-            'sla' => [
-                'score' => $adapter->getSlaScore(),
-                'kpi' => $adapter->getKpiMetrics(),
-            ],
-        ];
     }
 }

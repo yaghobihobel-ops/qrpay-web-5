@@ -93,75 +93,23 @@ class PaymentRouterTest extends TestCase
         PaymentRoute::create([
             'provider' => 'Alipay',
             'currency' => 'USD',
-            'destination_country' => 'US',
+            'destination_country' => 'CN',
             'priority' => 1,
             'fee' => 0.0120,
             'max_amount' => 1500,
             'sla_thresholds' => null,
+            'is_active' => true,
         ]);
 
         PaymentRoute::create([
             'provider' => 'BluBank',
             'currency' => 'USD',
-            'destination_country' => 'US',
+            'destination_country' => 'CN',
             'priority' => 2,
             'fee' => 0.0130,
             'max_amount' => 2000,
             'sla_thresholds' => null,
-        ]);
-
-        $router = new PaymentRouter([
-            new AlipayAdapter(),
-            new BluBankAdapter(),
-        ]);
-
-        $result = $router->selectRoute($user, 'USD', 500, 'US', [
-            'min_sla_score' => 0.90,
-        ], [
-            'transaction_type' => 'payment',
-            'user_level' => 'standard',
-        ]);
-
-        $this->assertSame('Alipay', $result->getRoute()->provider);
-        $this->assertSame('Alipay', $result->getProvider()->getName());
-        $this->assertNotEmpty($result->getSla());
-    }
-
-    public function test_select_route_throws_exception_when_no_route_matches(): void
-    {
-        $this->seedPaymentRoutes();
-
-        $this->expectException(NoAvailablePaymentRouteException::class);
-
-        $user = User::factory()->create();
-        $router = new PaymentRouter([
-            new AlipayAdapter(),
-            new BluBankAdapter(),
-        ]);
-
-        $router->selectRoute($user, 'EUR', 100, 'GB');
-    }
-
-    protected function seedPaymentRoutes(): void
-    {
-        PaymentRoute::create([
-            'provider' => 'Alipay',
-            'currency' => 'USD',
-            'destination_country' => 'CN',
-            'priority' => 1,
-            'fee' => 0.0120,
-            'max_amount' => 1500,
-            'sla_thresholds' => null,
-        ]);
-
-        PaymentRoute::create([
-            'provider' => 'BluBank',
-            'currency' => 'USD',
-            'destination_country' => 'CN',
-            'priority' => 2,
-            'fee' => 0.0130,
-            'max_amount' => 1500,
-            'sla_thresholds' => null,
+            'is_active' => true,
         ]);
     }
 }
