@@ -88,30 +88,6 @@ class PaymentGateway {
         return $manager->resolveByCurrency($currencyCode);
     }
 
-    protected function getRegionalManager(): ?RegionalPaymentManager
-    {
-        if ($this->regionalManager) {
-            return $this->regionalManager;
-        }
-
-        if (function_exists('app') && app()->bound(RegionalPaymentManager::class)) {
-            $this->regionalManager = app(RegionalPaymentManager::class);
-        }
-
-        return $this->regionalManager;
-    }
-
-    protected function resolveRegionalProvider(?string $currencyCode): ?RegionalPaymentProviderInterface
-    {
-        $manager = $this->getRegionalManager();
-
-        if (!$currencyCode || !$manager) {
-            return null;
-        }
-
-        return $manager->resolveByCurrency($currencyCode);
-    }
-
     public function gateway() {
         $request_data = $this->request_data;
         if(empty($request_data)) throw new Exception(__("Gateway Information is not available. Please provide payment gateway currency alias"));

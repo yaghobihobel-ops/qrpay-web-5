@@ -41,6 +41,16 @@
         "phpunit/phpunit": "^9.5.10",
         "spatie/laravel-ignition": "^1.0"
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/open-telemetry/sdk"
+        },
+        {
+            "type": "path",
+            "url": "packages/open-telemetry/exporter-otlp"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "App\\": "app/",
@@ -53,8 +63,7 @@
             "app/Http/Helpers/sudo-card.php",
             "app/Http/Helpers/stripeCard.php",
             "app/Http/Helpers/strowallet-card.php",
-            "app/Http/Helpers/Pagadito.php",
-            "app/Http/Helpers/Api/helpers.php"
+            "app/Http/Helpers/Pagadito.php"
         ]
     },
     "autoload-dev": {
