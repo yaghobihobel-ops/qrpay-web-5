@@ -5,8 +5,9 @@ namespace App\Http\Controllers\PaymentGateway\QrPay\v1;
 use App\Http\Controllers\Controller;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class DemoCheckoutController extends Controller
 {
@@ -15,6 +16,14 @@ class DemoCheckoutController extends Controller
    }
     //get token
     public function getToken(){
+        $baseUrl = rtrim(config('services.qrpay.base_url', 'https://qrpay.appdevs.net/pay/sandbox/api/v1'), '/');
+        $clientId = config('services.qrpay.client_id');
+        $secretId = config('services.qrpay.secret_id');
+
+        if (empty($clientId) || empty($secretId)) {
+            return (object) [
+                'code' => 500,
+                'message' => __('QRPay credentials are not configured.'),
         $base_url = "https://qrpay.appdevs.net/pay/sandbox/api/v1";
         $response = Http::post($base_url .'/authentication/token', [
             'client_id' => "tRCDXCuztQzRYThPwlh1KXAYm4bG3rwWjbxM2R63kTefrGD2B9jNn6JnarDf7ycxdzfnaroxcyr5cnduY6AqpulRSebwHwRmGerA",
@@ -55,16 +64,48 @@ class DemoCheckoutController extends Controller
                 'message' => sprintf('HTTP %d: %s', $statusCode, $apiMessage),
                 'token' => '',
             ];
-        }else{
-            $data = [
-                'code' => $result['message']['code']??200,
-                'message' =>  $result['type'],
-                'token' => $result['data']['access_token']??"",
-
-            ];
-
         }
-        return (object)$data;
+
+        try {
+            $response = Http::post($baseUrl . '/authentication/token', [
+                'client_id' => $clientId,
+                'secret_id' => $secretId,
+            ]);
+        } catch (Exception $exception) {
+            report($exception);
+
+            return (object) [
+                'code' => 500,
+                'message' => __('Failed to contact QRPay authentication service.'),
+                'token' => '',
+            ];
+        }
+
+        $statusCode = $response->getStatusCode();
+        $result = $response->json();
+
+        if ($statusCode !== 200) {
+            $message = data_get($result, 'message.error.0')
+                ?? data_get($result, 'message')
+                ?? __('Access token capture failed.');
+
+            Log::warning('QRPay access token request failed.', [
+                'status' => $statusCode,
+                'response' => $result,
+            ]);
+
+            return (object) [
+                'code' => $statusCode,
+                'message' => $message,
+                'token' => '',
+            ];
+        }
+
+        return (object) [
+            'code' => data_get($result, 'message.code', 200),
+            'message' => data_get($result, 'type', 'success'),
+            'token' => data_get($result, 'data.access_token', ''),
+        ];
 
     }
     //payment initiate
@@ -103,6 +144,7 @@ class DemoCheckoutController extends Controller
             return redirect($result['data']['payment_url']);
 
         }catch(Exception $e){
+            report($e);
             $errorMessage = $e->getMessage();
             $errorArray = [];
             if (preg_match('/{.*}/', $errorMessage, $matches)) {

@@ -49,4 +49,10 @@ return [
         'dashboard_url' => env('GRAFANA_DASHBOARD_URL'),
     ],
 
+    'qrpay' => [
+        'base_url' => env('QRPAY_API_BASE_URL', 'https://qrpay.appdevs.net/pay/sandbox/api/v1'),
+        'client_id' => env('QRPAY_CLIENT_ID'),
+        'secret_id' => env('QRPAY_SECRET_ID'),
+    ],
+
 ];
