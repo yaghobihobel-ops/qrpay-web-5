@@ -1,0 +1,7 @@
+{
+    "name": "open-telemetry/sdk",
+    "version": "1.0.0",
+    "type": "metapackage",
+    "description": "Local stub for OpenTelemetry SDK to satisfy offline installs.",
+    "license": "Apache-2.0"
+}

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\Yaml\Exception\ParseException;
@@ -9,6 +10,18 @@ use Symfony\Component\Yaml\Yaml;
 
 class HelpContentService
 {
+    protected string $manifestPath;
+
+    protected string $basePath;
+
+    protected ?array $manifestCache = null;
+
+    public function __construct(?string $manifestPath = null, ?string $basePath = null)
+    {
+        $this->manifestPath = $manifestPath ?? resource_path('docs/help/manifest.json');
+        $this->basePath = $basePath ?? resource_path('docs/help');
+    }
+
     /**
      * @var array<int, array<string, mixed>>
      */
@@ -196,6 +209,25 @@ class HelpContentService
                     return $category;
                 }
 
+                $category['matched_faqs'] = collect($category['faqs'] ?? [])
+                    ->filter(function (array $faq) use ($normalizedQuery) {
+                        $haystack = Str::lower(($faq['question'] ?? '') . ' ' . ($faq['answer'] ?? ''));
+
+                        return Str::contains($haystack, $normalizedQuery);
+                    })
+                    ->values()
+                    ->all();
+
+                if (empty($category['matched_faqs'])) {
+                    $category['matched_faqs'] = $category['faqs'] ?? [];
+                }
+
+                return $category;
+            })
+            ->values()
+            ->all();
+    }
+
     public function getSections(?string $language = null, ?string $query = null): array
     {
         $manifest = $this->manifest();
@@ -225,7 +257,36 @@ class HelpContentService
                 $resolvedLanguage = $language ?? $sectionDefault;
                 $latest = $this->resolveLatestVersion($section);
 
-                return $category;
+                $availableLanguages = collect($section['versions'] ?? [])
+                    ->flatMap(function (array $version) {
+                        return array_keys($version['languages'] ?? []);
+                    })
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => $section['id'],
+                    'title' => $this->translateField($section['title'] ?? [], $resolvedLanguage, $sectionDefault),
+                    'summary' => $this->translateField($section['summary'] ?? [], $resolvedLanguage, $sectionDefault),
+                    'category' => $section['category'] ?? null,
+                    'tags' => $section['tags'] ?? [],
+                    'default_language' => $sectionDefault,
+                    'language' => $resolvedLanguage,
+                    'available_languages' => $availableLanguages,
+                    'latest_version' => $latest['version'] ?? null,
+                    'released_at' => $latest['released_at'] ?? null,
+                    'versions' => collect($section['versions'] ?? [])
+                        ->map(function (array $version) {
+                            return [
+                                'version' => $version['version'] ?? null,
+                                'released_at' => $version['released_at'] ?? null,
+                                'languages' => array_keys($version['languages'] ?? []),
+                            ];
+                        })
+                        ->values()
+                        ->all(),
+                ];
             })
             ->values()
             ->all();
@@ -333,12 +394,109 @@ class HelpContentService
 
     protected function translateField(array $translations, string $language, string $fallback): ?string
     {
-        return 'docs/qrpay-api.postman_collection.json';
+        if (empty($translations)) {
+            return null;
+        }
+
+        if (array_key_exists($language, $translations) && $translations[$language] !== null && $translations[$language] !== '') {
+            return $translations[$language];
+        }
+
+        if (array_key_exists($fallback, $translations) && $translations[$fallback] !== null && $translations[$fallback] !== '') {
+            return $translations[$fallback];
+        }
+
+        foreach ($translations as $value) {
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     public function getApiOverviewVideoUrl(): string
     {
         return 'https://www.youtube.com/embed/ysz5S6PUM-U';
+    }
+
+    protected function manifest(): array
+    {
+        if ($this->manifestCache !== null) {
+            return $this->manifestCache;
+        }
+
+        if (!File::exists($this->manifestPath)) {
+            throw new RuntimeException('Help content manifest was not found at: ' . $this->manifestPath);
+        }
+
+        $raw = File::get($this->manifestPath);
+        $decoded = json_decode($raw, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            throw new RuntimeException('Unable to decode help content manifest: ' . json_last_error_msg());
+        }
+
+        if (!isset($decoded['sections']) || !is_array($decoded['sections'])) {
+            $decoded['sections'] = [];
+        }
+
+        return $this->manifestCache = $decoded;
+    }
+
+    protected function resolveLatestVersion(array $section): ?array
+    {
+        $versions = collect($section['versions'] ?? [])
+            ->filter(fn ($version) => is_array($version))
+            ->sortByDesc(function (array $version) {
+                return $version['released_at'] ?? $version['version'] ?? '';
+            })
+            ->values();
+
+        return $versions->first();
+    }
+
+    protected function resolveVersion(array $section, ?string $version, string $targetLanguage, string $fallbackLanguage): ?array
+    {
+        $versions = collect($section['versions'] ?? [])
+            ->filter(fn ($candidate) => is_array($candidate));
+
+        $matched = null;
+
+        if ($version) {
+            $matched = $versions->first(function (array $candidate) use ($version) {
+                return ($candidate['version'] ?? null) === $version;
+            });
+        }
+
+        if (!$matched) {
+            $matched = $this->resolveLatestVersion($section);
+        }
+
+        if (!$matched) {
+            return null;
+        }
+
+        $languages = $matched['languages'] ?? [];
+
+        $hasTarget = isset($languages[$targetLanguage]) && !empty($languages[$targetLanguage]['path'] ?? null);
+        $hasFallback = isset($languages[$fallbackLanguage]) && !empty($languages[$fallbackLanguage]['path'] ?? null);
+
+        if (!$hasTarget && !$hasFallback) {
+            foreach ($languages as $lang => $meta) {
+                if (!empty($meta['path'] ?? null)) {
+                    $matched['languages'] = array_merge($languages, [
+                        $lang => $meta,
+                    ]);
+
+                    return $matched;
+                }
+            }
+
+            return null;
+        }
+
+        return $matched;
     }
 
     protected function parseDocument(string $raw): array

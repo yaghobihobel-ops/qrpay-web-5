@@ -52,6 +52,8 @@ class User extends Authenticatable
         'stripe_connected_account'       => 'object',
         'remember_token'           => 'string',
         'strowallet_customer'       => 'object',
+        'is_sensitive'             => 'boolean',
+        'compliance_flags'         => 'array',
         'preferred_theme' => 'string',
         'preferred_language' => 'string',
         'notification_preferences' => 'array',
@@ -161,15 +163,15 @@ class User extends Authenticatable
 
     public function getFeeLevel(): string
     {
-        if (->is_sensitive) {
+        if ($this->is_sensitive) {
             return "sensitive";
         }
 
-        if ((int) ->kyc_verified === GlobalConst::VERIFIED) {
+        if ((int) $this->kyc_verified === GlobalConst::VERIFIED) {
             return "verified";
         }
 
-        if ((int) ->email_verified === GlobalConst::VERIFIED) {
+        if ((int) $this->email_verified === GlobalConst::VERIFIED) {
             return "trusted";
         }
 

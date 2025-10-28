@@ -3,7 +3,13 @@
 namespace App\Services\Orchestration;
 
 use App\Models\PaymentRoute;
+use App\Models\User;
 use App\Services\Orchestration\Contracts\PaymentProviderAdapter;
+use App\Services\Orchestration\DTO\PaymentRouteResult;
+use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
+use App\Services\Pricing\DTO\FeeQuote;
+use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
+use App\Services\Pricing\FeeEngine;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
@@ -14,14 +20,21 @@ class PaymentRouter
      */
     protected array $adapters = [];
 
-    /**
-     * @param iterable<int, PaymentProviderAdapter> $adapters
-     */
-    public function __construct(iterable $adapters)
+    public function __construct(iterable $adapters = [], protected ?FeeEngine $feeEngine = null)
     {
         foreach ($adapters as $adapter) {
-            $this->adapters[strtolower($adapter->getName())] = $adapter;
+            $this->registerAdapter($adapter);
         }
+    }
+
+    public function registerAdapter(PaymentProviderAdapter $adapter): void
+    {
+        $this->adapters[strtolower($adapter->getName())] = $adapter;
+    }
+
+    public function setFeeEngine(?FeeEngine $feeEngine): void
+    {
+        $this->feeEngine = $feeEngine;
     }
 
     /**
@@ -40,6 +53,11 @@ class PaymentRouter
         $excluded = array_map('strtolower', (array) ($context['excluded_providers'] ?? []));
         $preferred = array_map('strtolower', (array) ($context['preferred_providers'] ?? []));
 
+        if ($currency === '' || $destinationCountry === '') {
+            return null;
+        }
+
+        /** @var Collection<int, PaymentRoute> $routes */
         $routes = PaymentRoute::query()
             ->where('currency', $currency)
             ->where('destination_country', $destinationCountry)
@@ -47,23 +65,21 @@ class PaymentRouter
             ->orderBy('priority')
             ->get();
 
-        $routes = $routes->filter(function (PaymentRoute $route) use ($amount, $currency, $destinationCountry, $excluded) {
+        $routes = $routes->filter(function (PaymentRoute $route) use ($amount, $excluded) {
             if (in_array(strtolower($route->provider), $excluded, true)) {
                 return false;
             }
 
-            if ($amount !== null && $route->max_amount !== null && $route->max_amount < $amount) {
+            if ($amount !== null && $route->max_amount !== null && (float) $route->max_amount < $amount) {
                 return false;
             }
 
-            $adapter = $this->adapters[strtolower($route->provider)] ?? null;
-
-            if (!$adapter) {
-                return false;
-            }
-
-            return $adapter->supports($currency, $destinationCountry);
+            return isset($this->adapters[strtolower($route->provider)]);
         })->values();
+
+        if ($routes->isEmpty()) {
+            return null;
+        }
 
         $routes = $this->sortRoutes($routes, $preferred);
 
@@ -74,7 +90,18 @@ class PaymentRouter
                 continue;
             }
 
+            if (!$adapter->supports($currency, $destinationCountry)) {
+                continue;
+            }
+
             if (!$adapter->isAvailable($context)) {
+                continue;
+            }
+
+            $slaProfile = array_merge(['score' => $adapter->getSlaScore()], $adapter->getKpiMetrics());
+            $kpiMetrics = $adapter->getKpiMetrics();
+
+            if (!$this->passesRouteThresholds($route, $slaProfile, $kpiMetrics)) {
                 continue;
             }
 
@@ -88,29 +115,83 @@ class PaymentRouter
         return null;
     }
 
-    private function passesPolicies(
-        PaymentProviderAdapterInterface $provider,
-        PaymentRoute $route,
-        array $slaProfile,
-        array $kpiMetrics,
-        User $user,
-        float $amount,
-        string $currency,
-        string $destinationCountry,
-        array $slaPolicies
-    ): bool {
-        if (! $this->passesRouteThresholds($route, $slaProfile, $kpiMetrics)) {
-            return false;
-        }
-
-        foreach ($slaPolicies as $policy) {
-            if (!\is_callable($policy)) {
-                continue;
-            }
+    public function getFailoverRoute(array $context, string $failedProvider): ?array
+    {
+        $excluded = array_map('strtolower', (array) ($context['excluded_providers'] ?? []));
+        $excluded[] = strtolower($failedProvider);
 
         $context['excluded_providers'] = array_values(array_unique($excluded));
 
         return $this->selectBestRoute($context);
+    }
+
+    public function selectRoute(
+        ?User $user,
+        string $currency,
+        float $amount,
+        string $destinationCountry,
+        array $slaPolicies = [],
+        array $context = [],
+        ?FeeEngine $feeEngine = null
+    ): PaymentRouteResult {
+        $context = array_merge($context, [
+            'currency' => $currency,
+            'amount' => $amount,
+            'destination_country' => $destinationCountry,
+            'sla' => $slaPolicies,
+            'user' => $user,
+        ]);
+
+        $decision = $this->selectBestRoute($context);
+
+        if (!$decision) {
+            throw new NoAvailablePaymentRouteException('No matching payment route was found.');
+        }
+
+        $route = PaymentRoute::find($decision['route_id']);
+
+        if (!$route) {
+            throw new NoAvailablePaymentRouteException('Selected payment route is no longer available.');
+        }
+
+        $adapter = $this->adapters[strtolower($route->provider)] ?? null;
+
+        if (!$adapter) {
+            throw new NoAvailablePaymentRouteException('No adapter is registered for provider ' . $route->provider . '.');
+        }
+
+        $sla = [
+            'score' => $adapter->getSlaScore(),
+            'profile' => array_merge(['score' => $adapter->getSlaScore()], $adapter->getKpiMetrics()),
+        ];
+        $kpi = $adapter->getKpiMetrics();
+
+        $engine = $feeEngine ?? $this->feeEngine;
+        $feeQuote = $this->quoteFees($engine, $route, $amount, $context);
+
+        return new PaymentRouteResult($adapter, $route, $sla, $kpi, $feeQuote);
+    }
+
+    protected function quoteFees(?FeeEngine $engine, PaymentRoute $route, float $amount, array $context): ?FeeQuote
+    {
+        if (!$engine) {
+            return null;
+        }
+
+        $transactionType = (string) Arr::get($context, 'transaction_type', 'payment');
+        $userLevel = (string) Arr::get($context, 'user_level', 'standard');
+
+        try {
+            return $engine->quote(
+                currency: strtoupper($route->currency),
+                provider: $route->provider,
+                transactionType: $transactionType,
+                userLevel: $userLevel,
+                amount: $amount
+            );
+        } catch (PricingRuleNotFoundException $exception) {
+            return null;
+        }
     }
 
     /**
@@ -164,28 +245,28 @@ class PaymentRouter
     {
         $thresholds = $route->sla_thresholds;
 
-        if (!\is_array($thresholds) || $thresholds === []) {
+        if (!is_array($thresholds) || $thresholds === []) {
             return true;
         }
 
         $normalised = $this->normaliseThresholds($thresholds);
 
         foreach ($normalised['sla'] as $metric => $threshold) {
-            if (! array_key_exists($metric, $slaProfile)) {
+            if (!array_key_exists($metric, $slaProfile)) {
                 return false;
             }
 
-            if (! $this->compareMetric($metric, $slaProfile[$metric], $threshold)) {
+            if (!$this->compareMetric($metric, (float) $slaProfile[$metric], $threshold)) {
                 return false;
             }
         }
 
         foreach ($normalised['kpi'] as $metric => $threshold) {
-            if (! array_key_exists($metric, $kpiMetrics)) {
+            if (!array_key_exists($metric, $kpiMetrics)) {
                 return false;
             }
 
-            if (! $this->compareMetric($metric, $kpiMetrics[$metric], $threshold)) {
+            if (!$this->compareMetric($metric, (float) $kpiMetrics[$metric], $threshold)) {
                 return false;
             }
         }
@@ -201,8 +282,8 @@ class PaymentRouter
         ];
 
         if (isset($thresholds['sla']) || isset($thresholds['kpi'])) {
-            $normalised['sla'] = \is_array($thresholds['sla'] ?? null) ? $this->flattenNumericValues($thresholds['sla']) : [];
-            $normalised['kpi'] = \is_array($thresholds['kpi'] ?? null) ? $this->flattenNumericValues($thresholds['kpi']) : [];
+            $normalised['sla'] = is_array($thresholds['sla'] ?? null) ? $this->flattenNumericValues($thresholds['sla']) : [];
+            $normalised['kpi'] = is_array($thresholds['kpi'] ?? null) ? $this->flattenNumericValues($thresholds['kpi']) : [];
 
             return $normalised;
         }
@@ -224,11 +305,11 @@ class PaymentRouter
         $flattened = [];
 
         foreach ($values as $metric => $value) {
-            if (\is_array($value)) {
+            if (is_array($value)) {
                 continue;
             }
 
-            if (! \is_numeric($value)) {
+            if (!is_numeric($value)) {
                 continue;
             }
 
@@ -271,5 +352,41 @@ class PaymentRouter
             || str_contains($metric, 'conversion')
             || str_contains($metric, 'completion')
             || str_contains($metric, 'error_rate');
+    }
+
+    private function normalizeAmount(mixed $amount): ?float
+    {
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        if (is_numeric($amount)) {
+            return (float) $amount;
+        }
+
+        if (is_string($amount)) {
+            $normalized = preg_replace('/[^0-9.\-]/', '', $amount);
+
+            return is_numeric($normalized) ? (float) $normalized : null;
+        }
+
+        return null;
+    }
+
+    protected function formatDecision(PaymentRoute $route, PaymentProviderAdapter $adapter): array
+    {
+        return [
+            'route_id' => $route->id,
+            'provider' => $route->provider,
+            'priority' => $route->priority,
+            'fee' => $route->fee,
+            'max_amount' => $route->max_amount,
+            'currency' => $route->currency,
+            'destination_country' => $route->destination_country,
+            'sla' => [
+                'score' => $adapter->getSlaScore(),
+                'kpi' => $adapter->getKpiMetrics(),
+            ],
+        ];
     }
 }
