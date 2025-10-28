@@ -20,11 +20,11 @@ class DemoCheckoutController extends Controller
 
     public function getToken(): object
     {
-        $baseUrl = $this->resolveBaseUrl();
-        $clientId = config('services.qrpay.client_id');
-        $secretId = config('services.qrpay.secret_id');
+        $baseUrl = rtrim(config('services.qrpay.base_url', 'https://qrpay.appdevs.net/pay/sandbox/api/v1'), '/');
+        $clientId = (string) config('services.qrpay.client_id');
+        $secretId = (string) config('services.qrpay.secret_id');
 
-        if (empty($clientId) || empty($secretId)) {
+        if ($clientId === '' || $secretId === '') {
             return (object) [
                 'code' => 500,
                 'message' => __('QRPay credentials are not configured.'),
@@ -63,8 +63,8 @@ class DemoCheckoutController extends Controller
             ]);
 
             return (object) [
-                'code' => $status,
-                'message' => $message,
+                'code' => $statusCode,
+                'message' => sprintf('HTTP %d: %s', $statusCode, $message),
                 'token' => '',
             ];
         }
@@ -85,7 +85,7 @@ class DemoCheckoutController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return back()->withErrors($validator->errors())->withInput();
+            return back()->withErrors($validator)->withInput();
         }
 
         $validated = $validator->validated();
@@ -95,41 +95,36 @@ class DemoCheckoutController extends Controller
             return back()->with(['error' => [$tokenInfo->message]]);
         }
 
-        $baseUrl = $this->resolveBaseUrl();
+        $baseUrl = rtrim(config('services.qrpay.base_url', 'https://qrpay.appdevs.net/pay/sandbox/api/v1'), '/');
 
         try {
-            $response = Http::withToken($tokenInfo->token)
-                ->post($baseUrl . '/payment/create', [
-                    'amount' => $validated['amount'],
-                    'currency' => 'USD',
-                    'return_url' => route('merchant.checkout.success'),
-                    'cancel_url' => route('merchant.checkout.cancel'),
-                    'custom' => $this->customRandomString(10),
-                ]);
+            $response = Http::withToken($tokenInfo->token)->post($baseUrl . '/payment/create', [
+                'amount' => (float) $validated['amount'],
+                'currency' => config('services.qrpay.currency', 'USD'),
+                'return_url' => route('merchant.checkout.success'),
+                'cancel_url' => route('merchant.checkout.cancel'),
+                'custom' => $this->generateReference(),
+            ]);
         } catch (Exception $exception) {
             report($exception);
 
-            return back()->with(['error' => [__('Unable to contact the QRPay payment service.')]]);
+            return back()->with(['error' => [__('Unable to initiate payment. Please try again.')]]);
         }
 
-        if (!$response->successful()) {
-            $payload = $response->json();
-            $message = data_get($payload, 'message.error.0')
-                ?? data_get($payload, 'message')
-                ?? __('Unable to create the payment.');
+        $payload = $response->json();
+        $paymentUrl = data_get($payload, 'data.payment_url');
 
-            Log::warning('QRPay payment creation failed.', [
-                'status' => $response->status(),
+        if ($response->failed() || empty($paymentUrl)) {
+            Log::warning('QRPay payment initiation failed.', [
+                'status' => $response->getStatusCode(),
                 'response' => $payload,
             ]);
 
+            $message = data_get($payload, 'message.error.0')
+                ?? data_get($payload, 'message')
+                ?? __('Something went wrong. Please try again later.');
+
             return back()->with(['error' => [$message]]);
-        }
-
-        $paymentUrl = data_get($response->json(), 'data.payment_url');
-
-        if (empty($paymentUrl)) {
-            return back()->with(['error' => [__('Payment URL was not provided by QRPay.')]]);
         }
 
         return redirect()->away($paymentUrl);
@@ -140,12 +135,12 @@ class DemoCheckoutController extends Controller
         if ($request->input('type') === 'success') {
             return redirect()
                 ->route('merchant.checkout.index')
-                ->with(['success' => [__('Your payment was processed successfully.')]]);
+                ->with(['success' => [__('Your payment completed successfully.')]]);
         }
 
         return redirect()
             ->route('merchant.checkout.index')
-            ->with(['error' => [__('Unexpected response received from QRPay.')]]);
+            ->with(['error' => [__('Unable to verify payment status.')]]);
     }
 
     public function payCancel()
@@ -155,21 +150,15 @@ class DemoCheckoutController extends Controller
             ->with(['error' => [__('Your payment was cancelled.')]]);
     }
 
-    protected function customRandomString(int $length = 10): string
+    protected function generateReference(int $length = 10): string
     {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        $charactersLength = strlen($characters);
-        $random = '';
+        $reference = '';
 
-        for ($index = 0; $index < $length; $index++) {
-            $random .= $characters[random_int(0, $charactersLength - 1)];
+        for ($i = 0; $i < $length; $i++) {
+            $reference .= $characters[random_int(0, strlen($characters) - 1)];
         }
 
-        return $random;
-    }
-
-    protected function resolveBaseUrl(): string
-    {
-        return rtrim(config('services.qrpay.base_url', 'https://qrpay.appdevs.net/pay/sandbox/api/v1'), '/');
+        return $reference;
     }
 }

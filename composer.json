@@ -93,22 +93,10 @@
             "dont-discover": []
         }
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "packages/open-telemetry/sdk",
-            "options": {
-                "symlink": false
-            }
-        },
-        {
-            "type": "path",
-            "url": "packages/open-telemetry/exporter-otlp",
-            "options": {
-                "symlink": false
-            }
-        }
-    ],
+    "suggest": {
+        "open-telemetry/sdk": "Required to enable distributed tracing support.",
+        "open-telemetry/exporter-otlp": "Install to export traces and metrics via OTLP."
+    },
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",
