@@ -3,10 +3,12 @@
 namespace Tests\Feature\Orchestration;
 
 use App\Models\PaymentRoute;
+use App\Models\User;
 use App\Services\Orchestration\Adapters\AlipayAdapter;
 use App\Services\Orchestration\Adapters\BluBankAdapter;
 use App\Services\Orchestration\Adapters\GenericProviderAdapter;
 use App\Services\Orchestration\Adapters\YoomoneaAdapter;
+use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
 use App\Services\Orchestration\PaymentRouter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -84,8 +86,10 @@ class PaymentRouterTest extends TestCase
         $this->assertSame('BluBank', $outageDecision['provider']);
     }
 
-    protected function seedPaymentRoutes(): void
+    public function test_select_route_returns_result_object(): void
     {
+        $user = User::factory()->create();
+
         PaymentRoute::create([
             'provider' => 'Alipay',
             'currency' => 'USD',
@@ -103,7 +107,7 @@ class PaymentRouterTest extends TestCase
             'destination_country' => 'CN',
             'priority' => 2,
             'fee' => 0.0130,
-            'max_amount' => 1500,
+            'max_amount' => 2000,
             'sla_thresholds' => null,
             'is_active' => true,
         ]);

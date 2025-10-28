@@ -1,5 +1,10 @@
 <?php
 
+use App\Services\Payout\Regional\ChinaBankTransferService;
+use App\Services\Payout\Regional\IranCryptoPayoutService;
+use App\Services\Payout\Regional\RussiaBankTransferService;
+use App\Services\Payout\Regional\TurkeyBankTransferService;
+
 return [
     'feature_flags' => [
         'blubank' => filter_var(env('FEATURE_PAYOUTS_BLUBANK', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,

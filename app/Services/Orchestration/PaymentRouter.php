@@ -3,7 +3,13 @@
 namespace App\Services\Orchestration;
 
 use App\Models\PaymentRoute;
+use App\Models\User;
 use App\Services\Orchestration\Contracts\PaymentProviderAdapter;
+use App\Services\Orchestration\DTO\PaymentRouteResult;
+use App\Services\Orchestration\Exceptions\NoAvailablePaymentRouteException;
+use App\Services\Pricing\DTO\FeeQuote;
+use App\Services\Pricing\Exceptions\PricingRuleNotFoundException;
+use App\Services\Pricing\FeeEngine;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
@@ -14,14 +20,21 @@ class PaymentRouter
      */
     protected array $adapters = [];
 
-    /**
-     * @param iterable<int, PaymentProviderAdapter> $adapters
-     */
-    public function __construct(iterable $adapters)
+    public function __construct(iterable $adapters = [], protected ?FeeEngine $feeEngine = null)
     {
         foreach ($adapters as $adapter) {
-            $this->adapters[strtolower($adapter->getName())] = $adapter;
+            $this->registerAdapter($adapter);
         }
+    }
+
+    public function registerAdapter(PaymentProviderAdapter $adapter): void
+    {
+        $this->adapters[strtolower($adapter->getName())] = $adapter;
+    }
+
+    public function setFeeEngine(?FeeEngine $feeEngine): void
+    {
+        $this->feeEngine = $feeEngine;
     }
 
     /**
@@ -53,12 +66,12 @@ class PaymentRouter
 
         $routes = $routesQuery->orderBy('priority')->get();
 
-        $routes = $routes->filter(function (PaymentRoute $route) use ($amount, $currency, $destinationCountry, $excluded) {
+        $routes = $routes->filter(function (PaymentRoute $route) use ($amount, $excluded) {
             if (in_array(strtolower($route->provider), $excluded, true)) {
                 return false;
             }
 
-            if ($amount !== null && $route->max_amount !== null && $route->max_amount < $amount) {
+            if ($amount !== null && $route->max_amount !== null && (float) $route->max_amount < $amount) {
                 return false;
             }
 
@@ -88,7 +101,7 @@ class PaymentRouter
                 continue;
             }
 
-            if (!$adapter->isAvailable($context)) {
+            if (!$adapter->supports($currency, $destinationCountry)) {
                 continue;
             }
 
@@ -100,8 +113,8 @@ class PaymentRouter
                 continue;
             }
 
-            return $this->formatDecision($route, $adapter);
-        }
+            $slaProfile = array_merge(['score' => $adapter->getSlaScore()], $adapter->getKpiMetrics());
+            $kpiMetrics = $adapter->getKpiMetrics();
 
         return null;
     }
@@ -116,9 +129,10 @@ class PaymentRouter
         $excluded = array_map('strtolower', (array) ($context['excluded_providers'] ?? []));
         $excluded[] = strtolower($failedProvider);
 
-        $context['excluded_providers'] = array_values(array_unique($excluded));
+            return $this->formatDecision($route, $adapter);
+        }
 
-        return $this->selectBestRoute($context);
+        return null;
     }
 
     protected function formatDecision(PaymentRoute $route, PaymentProviderAdapter $adapter): array

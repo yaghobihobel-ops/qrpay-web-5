@@ -4,12 +4,25 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use JsonException;
 use RuntimeException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 class HelpContentService
 {
+    protected string $basePath;
+
+    /**
+     * @var array<string, mixed>|null
+     */
+    protected ?array $manifestCache = null;
+
+    public function __construct(?string $basePath = null)
+    {
+        $this->basePath = $basePath ?? resource_path('docs/help');
+    }
+
     /**
      * @var array<int, array<string, mixed>>
      */
@@ -205,7 +218,7 @@ class HelpContentService
                 return Str::contains($category['keywords'], $normalizedQuery);
             })
             ->map(function (array $category) use ($normalizedQuery) {
-                if (!$normalizedQuery) {
+                if (! $normalizedQuery) {
                     return $category;
                 }
 
@@ -231,7 +244,7 @@ class HelpContentService
 
         return collect($manifest['sections'] ?? [])
             ->filter(function (array $section) use ($language, $defaultLanguage, $query) {
-                if (!$query) {
+                if (! $query) {
                     return true;
                 }
 
@@ -298,6 +311,8 @@ class HelpContentService
             return null;
         }
 
+        $targetLanguage = $versionData['resolved_language'] ?? $targetLanguage;
+
         $languageRecord = $versionData['languages'][$targetLanguage] ?? null;
 
         if (!$languageRecord) {
@@ -312,7 +327,7 @@ class HelpContentService
 
         $filePath = $this->basePath . DIRECTORY_SEPARATOR . $languageRecord['path'];
 
-        if (!File::exists($filePath)) {
+        if (! File::exists($filePath)) {
             return null;
         }
 
@@ -380,7 +395,25 @@ class HelpContentService
 
     public function getPostmanCollectionPath(): string
     {
-        return 'docs/qrpay-api.postman_collection.json';
+        if (empty($translations)) {
+            return null;
+        }
+
+        if (array_key_exists($language, $translations) && $translations[$language] !== null && $translations[$language] !== '') {
+            return $translations[$language];
+        }
+
+        if (array_key_exists($fallback, $translations) && $translations[$fallback] !== null && $translations[$fallback] !== '') {
+            return $translations[$fallback];
+        }
+
+        foreach ($translations as $value) {
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     public function getApiOverviewVideoUrl(): string

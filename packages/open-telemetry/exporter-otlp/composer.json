@@ -1,0 +1,10 @@
+{
+    "name": "open-telemetry/exporter-otlp",
+    "description": "Stub OTLP exporter package satisfied by the local telemetry shim.",
+    "type": "metapackage",
+    "license": "Apache-2.0",
+    "version": "1.0.0",
+    "require": {
+        "open-telemetry/sdk": "^1.0"
+    }
+}

@@ -3,13 +3,13 @@
 namespace App\Services\Orchestration\DTO;
 
 use App\Models\PaymentRoute;
-use App\Services\Orchestration\Contracts\PaymentProviderAdapterInterface;
+use App\Services\Orchestration\Contracts\PaymentProviderAdapter;
 use App\Services\Pricing\DTO\FeeQuote;
 
 class PaymentRouteResult
 {
     public function __construct(
-        protected PaymentProviderAdapterInterface $provider,
+        protected PaymentProviderAdapter $provider,
         protected PaymentRoute $route,
         protected array $sla,
         protected array $kpi,
@@ -17,7 +17,7 @@ class PaymentRouteResult
     ) {
     }
 
-    public function getProvider(): PaymentProviderAdapterInterface
+    public function getProvider(): PaymentProviderAdapter
     {
         return $this->provider;
     }
